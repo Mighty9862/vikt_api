@@ -53,7 +53,7 @@ async def index(
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
     
-@router.get("/users/me", response_model=UserSchema)
+@router.get("/me", response_model=UserSchema)
 async def index(
     token: str = Depends(oauth2_scheme),
     service: UserService = Depends(get_user_service)

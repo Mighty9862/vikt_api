@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+#from starlette.middleware.cors import CORSMiddleware as CORSMiddleware
 import uvicorn
 from presentation import router as ApiV2Router
 
@@ -40,7 +41,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins="*",
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
 
