@@ -1,3 +1,4 @@
+from typing import List
 from ..base.base_repository import BaseRepository
 from models import Question
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -45,6 +46,19 @@ class QuestionRepository(BaseRepository[Question]):
             raise "Fail"
         
         return list(res)
+    
+    async def get_question_by_chapter_and_id(self, chapter: str, question_id: int) -> List[Question]:
+        query = select(self.model).where(
+            (self.model.chapter == chapter) & 
+            (self.model.id == question_id)
+        )
+        stmt = await self.session.execute(query)
+        res = stmt.scalars().all()
+
+        if not res:
+            raise self.exception
+        
+        return res
     
     
     

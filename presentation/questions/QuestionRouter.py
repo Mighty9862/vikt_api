@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from services.questions.QuestionService import QuestionService
 from schemas.questions import QuestionSchema, QuestionReadSchema
 from typing import List
@@ -40,4 +40,17 @@ async def index(
 ) -> list[QuestionSchema]:
     return await service.get_question_by_chapter(chapter=chapter)
 
+@router.get("/{chapter}/{question_id}",
+            summary="Получение вопросов по разделу и ID вопроса",
+            description="Возвращает вопрос из раздела по конкретному id")
+async def get_question_by_chapter_and_id(
+    chapter: str,
+    question_id: int,
+    service: QuestionService = Depends(get_question_service),
+):
+    try:
+        question = await service.get_question_by_chapter_and_id(chapter=chapter, question_id=question_id)
+        return question
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
 

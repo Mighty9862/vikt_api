@@ -16,6 +16,9 @@ class QuestionService:
     
     async def get_question_by_chapter(self, chapter: str) -> list:
         return await self.repository.get_question_by_chapter(chapter=chapter)
+    
+    async def get_question_by_chapter_and_id(self, chapter: str, question_id: int) -> list:
+        return await self.repository.get_question_by_chapter_and_id(chapter=chapter, question_id=question_id)
 
     
 
