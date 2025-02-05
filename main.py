@@ -51,6 +51,10 @@ def get_home():
         "message": "Welcome to Vikt"
     }
 
+#if __name__ == "__main__":
+#    uvicorn.run("main:app", port=8000, reload=True)
+
+
 
 
     # gunicorn main:app  --bind 0.0.0.0:8000 --worker-class uvicorn.workers.UvicornWorker

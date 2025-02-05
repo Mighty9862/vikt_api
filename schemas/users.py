@@ -5,7 +5,7 @@ from datetime import datetime
 class UserSchema(BaseModel):
     id: int
     username: str
-    password: str
+
 
 class UserLoginSchema(BaseModel):
     username: str

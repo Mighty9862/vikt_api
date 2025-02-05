@@ -1,11 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security import HTTPBearer, OAuth2PasswordBearer
 from services.users.UserService import UserService
 from schemas.users import UserLoginSchema, UserSchema, UserByName
 #from config.utils.auth import utils
 from dependencies import get_user_service
 
 
-router = APIRouter(prefix="/users", tags=["User"])
+http_bearer = HTTPBearer(auto_error=False)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v2/users/login/")
+
+router = APIRouter(prefix="/users", tags=["User"], dependencies=[Depends(http_bearer)])
 
 
 @router.post("/registration",
@@ -48,6 +52,13 @@ async def index(
         return user
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
+    
+@router.get("/users/me", response_model=UserSchema)
+async def index(
+    token: str = Depends(oauth2_scheme),
+    service: UserService = Depends(get_user_service)
+) -> UserSchema:
+    return await service.me(token=token)
 
 @router.get("/",
         summary="Список всех пользователей",
@@ -90,3 +101,4 @@ async def index(
         return user
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
+    

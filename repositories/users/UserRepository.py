@@ -11,7 +11,7 @@ class UserRepository(BaseRepository[User]):
     def __init__(self, session: AsyncSession):
         super().__init__(session=session, model=self.model, exception=self.exception)
 
-    async def registration(self, hash_password: str, username: str) -> User:
+    async def registration(self, hash_password: bytes, username: str) -> User:
         query = select(self.model).where(self.model.username == username)
         stmt = await self.session.execute(query)
         candidate = stmt.scalars().first()
@@ -105,5 +105,16 @@ class UserRepository(BaseRepository[User]):
         return {
             "message": "Пользователь успешно удален"
         }
+    
+    async def get_current_auth_user(self, username: str) -> User:
+        query = select(self.model).where(self.model.username == username)
+        stmt = await self.session.execute(query)
+        res = stmt.scalars().first()
+        
+
+        if not res:
+            raise UserNotExistsException()
+
+        return res
 
         
