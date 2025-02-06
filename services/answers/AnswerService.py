@@ -23,6 +23,9 @@ class AnswerService:
     
     async def get_answers_by_question_and_user(self, question_id: int, user_id: int) -> list:
         return await self.repository.get_answers_by_question_and_user(question_id=question_id, user_id=user_id)
+    
+    async def reset_answers_table(self) -> dict:
+        return await self.repository.reset_table()
 
     
 

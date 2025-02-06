@@ -78,3 +78,15 @@ async def get_answers_by_question_and_user(
         return answers
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
+    
+@router.post("/reset",
+             summary="Обнуление таблицы answers",
+             description="Удаляет все данные из таблицы answers и сбрасывает счетчик id")
+async def reset_answers_table(
+    service: AnswerService = Depends(get_answer_service)
+) -> dict:
+    try:
+        result = await service.reset_answers_table()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
