@@ -74,5 +74,8 @@ class UserService:
     
     async def delete_user_by_username(self, username: str) -> dict:
         return await self.repository.delete_user_by_username(username=username)
+    
+    async def reset_users_table(self) -> dict:
+        return await self.repository.reset_table()
 
 

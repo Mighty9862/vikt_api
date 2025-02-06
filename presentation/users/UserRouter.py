@@ -102,3 +102,15 @@ async def index(
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
     
+@router.post("/reset",
+             summary="Обнуление таблицы users",
+             description="Удаляет все данные из таблицы users и сбрасывает счетчик id")
+async def reset_users_table(
+    service: UserService = Depends(get_user_service)
+) -> dict:
+    try:
+        result = await service.reset_users_table()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    

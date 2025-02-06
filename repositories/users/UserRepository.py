@@ -2,7 +2,7 @@ from ..base.base_repository import BaseRepository
 from models import User
 from sqlalchemy.ext.asyncio import AsyncSession
 from .exceptions.exceptions import UserNotFoundException, UsersNotFoundException, UserExistsException, UserNotExistsException
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, text
 
 class UserRepository(BaseRepository[User]):
     model: User = User
@@ -116,5 +116,18 @@ class UserRepository(BaseRepository[User]):
             raise UserNotExistsException()
 
         return res
+    
+    async def reset_table(self) -> dict:
+        # Удаляем все записи из таблицы
+        delete_query = delete(self.model)
+        await self.session.execute(delete_query)
+
+        # Сбрасываем последовательность id (для PostgreSQL)
+        reset_sequence_query = text("ALTER SEQUENCE users_id_seq RESTART WITH 1")
+        await self.session.execute(reset_sequence_query)
+
+        await self.session.commit()
+
+        return {"message": "Таблица users успешно обнулена"}
 
         
