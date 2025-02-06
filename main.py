@@ -52,8 +52,8 @@ def get_home():
         "message": "Welcome to Vikt"
     }
 
-if __name__ == "__main__":
-    uvicorn.run("main:app", port=8000, reload=True)
+#if __name__ == "__main__":
+#    uvicorn.run("main:app", port=8000, reload=True)
 
 
 
@@ -61,3 +61,4 @@ if __name__ == "__main__":
     # gunicorn main:app  --bind 0.0.0.0:8000 --worker-class uvicorn.workers.UvicornWorker
     # fastapi run --workers 8 main.py
     # CMD ["fastapi", "run", "app/main.py", "--proxy-headers", "--port", "8000", "--host", "0.0.0.0", "--workers", "8"]
+    # sudo docker system prune --all --force --volumes

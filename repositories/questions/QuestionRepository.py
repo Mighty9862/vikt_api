@@ -3,7 +3,7 @@ from ..base.base_repository import BaseRepository
 from models import Question
 from sqlalchemy.ext.asyncio import AsyncSession
 from .exceptions.exceptions import UserNotFoundException, UserNotExistsException, UserExistsException
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, text
 
 class QuestionRepository(BaseRepository[Question]):
     model: Question = Question
@@ -59,6 +59,16 @@ class QuestionRepository(BaseRepository[Question]):
             raise self.exception
         
         return res
+    
+    async def reset_table(self):
+        # Удаляем все записи из таблицы
+        await self.session.execute(delete(self.model))
+        
+        # Если используется PostgreSQL, сбрасываем последовательность
+        if self.session.bind.dialect.name == 'postgresql':
+            await self.session.execute(text(f"ALTER SEQUENCE {self.model.__tablename__}_id_seq RESTART WITH 1"))
+        
+        await self.session.commit()
     
     
     

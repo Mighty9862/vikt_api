@@ -37,7 +37,7 @@ class DBConfig(BaseModel):
 
 class JWTConfig(BaseModel):
     secret: str = JWT_SECRET
-    access_token_expires_minutes: int = 15
+    access_token_expires_minutes: int = 60 * 24 * 30
     refresh_token_expires_minutes: int = 60 * 24 * 30
 
 

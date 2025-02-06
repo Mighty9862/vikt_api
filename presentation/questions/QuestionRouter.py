@@ -54,3 +54,11 @@ async def get_question_by_chapter_and_id(
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+@router.post("/reset",
+             summary="Сброс таблицы вопросов",
+             description="Полностью очищает таблицу вопросов и сбрасывает счетчик ID.")
+async def reset_question_table(
+    service: QuestionService = Depends(get_question_service)
+):
+    await service.reset_question_table()
+    return {"message": "Question table has been reset successfully"}
