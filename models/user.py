@@ -9,6 +9,9 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(12), nullable=False, unique=True)
     password: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     score: Mapped[int] = mapped_column(nullable=True, default=0)
+
+    # Связь с таблицей answers
+    answers = relationship("Answer", back_populates="user", cascade="all, delete-orphan")
     
     #profile: Mapped["Profile"] = relationship(back_populates="user", cascade="all, delete-orphan", uselist=False)
     #settings: Mapped["SettingsModel"] = relationship(back_populates="user", cascade="all, delete-orphan", uselist=False)

@@ -12,6 +12,9 @@ class Answer(Base):
     answer: Mapped[str] = mapped_column(String(255), nullable=False, unique=False)
 
     answer_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now())
+
+    # Связь с таблицей users
+    user = relationship("User", back_populates="answers")
     
     #profile: Mapped["Profile"] = relationship(back_populates="user", cascade="all, delete-orphan", uselist=False)
     #settings: Mapped["SettingsModel"] = relationship(back_populates="user", cascade="all, delete-orphan", uselist=False)
