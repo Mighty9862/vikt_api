@@ -18,7 +18,10 @@ class QuestionRepository(BaseRepository[Question]):
             new_question = Question(
                 question=question_data.get("question"),
                 answer=question_data.get("answer"),
-                chapter=question_data.get("chapter")
+                chapter=question_data.get("chapter"),
+                question_image=question_data.get("question_image"),
+                answer_image=question_data.get("answer_image")
+
             )
             self.session.add(new_question)
         await self.session.commit()

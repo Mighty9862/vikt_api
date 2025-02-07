@@ -10,6 +10,9 @@ class Question(Base):
     answer: Mapped[str] = mapped_column(String(1000), nullable=True, unique=False)
     chapter: Mapped[str] = mapped_column(String(1000), nullable=False, unique=False)
 
+    question_image: Mapped[str] = mapped_column(String(1000), nullable=False, unique=False)
+    answer_image: Mapped[str] = mapped_column(String(1000), nullable=False, unique=False)
+
     # Связь с таблицей answers
     answers = relationship("Answer", back_populates="question", cascade="all, delete-orphan")
     
