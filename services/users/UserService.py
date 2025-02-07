@@ -69,8 +69,8 @@ class UserService:
     async def get_user_by_username(self, username: str):
         return await self.repository.get_user_by_username(username=username)
     
-    async def add_score_to_user(self, username: str, points: int):
-        return await self.repository.add_score_to_user(username=username, points=points)
+    async def add_score_to_user(self, user_id: int, points: int):
+        return await self.repository.add_score_to_user(user_id=user_id, points=points)
     
     async def delete_user_by_username(self, username: str) -> dict:
         return await self.repository.delete_user_by_username(username=username)

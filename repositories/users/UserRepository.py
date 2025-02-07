@@ -71,9 +71,9 @@ class UserRepository(BaseRepository[User]):
 
         return list(res)
     
-    async def add_score_to_user(self, username: str, points: int) -> User:
+    async def add_score_to_user(self, user_id: int, points: int) -> User:
         # Сначала проверяем, существует ли пользователь
-        query = select(self.model).where(self.model.username == username)
+        query = select(self.model).where(self.model.id == user_id)
         stmt = await self.session.execute(query)
         user = stmt.scalars().first()
 
@@ -86,7 +86,11 @@ class UserRepository(BaseRepository[User]):
         # Обновляем значение в базе данных
         await self.session.commit()  # Зафиксировать изменения
 
-        return user
+        return {
+                "id": user.id,
+                "username": user.username,
+                "score": user.score
+            }
 
     async def delete_user_by_username(self, username: str) -> User:
         # Сначала проверяем, существует ли пользователь
