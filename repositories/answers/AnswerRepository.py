@@ -18,7 +18,7 @@ class AnswerRepository(BaseRepository[Answer]):
             question_id=question_id,
             user_id=user_id,
             answer=answer,
-            answer_at=datetime.now()
+            answer_at=(datetime.now()).strftime("%H:%M:%S")
         )
         self.session.add(new_answer)
         await self.session.commit()

@@ -11,7 +11,7 @@ class Answer(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True, unique=False)
     answer: Mapped[str] = mapped_column(String(255), nullable=False, unique=False)
 
-    answer_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now())
+    answer_at: Mapped[str] = mapped_column(String)
 
     # Связь с таблицей users
     user = relationship("User", back_populates="answers")
