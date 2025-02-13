@@ -46,7 +46,7 @@ class QuestionRepository(BaseRepository[Question]):
         res = stmt.scalars().all()
 
         if not res:
-            raise "Fail"
+            return False
         
         return list(res)
     

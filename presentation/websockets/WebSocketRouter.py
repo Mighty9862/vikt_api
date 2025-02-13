@@ -34,6 +34,7 @@ async def add_gamestatus(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+
 @router.post("/admin/add_point/{player_name}")
 async def add_point(player_name: str, service: UserService = Depends(get_user_service)):
     await service.add_score_to_user(username=player_name, points=1)
@@ -44,6 +45,12 @@ async def remove_point(player_name: str, service: UserService = Depends(get_user
     await service.add_score_to_user(username=player_name, points=-1)
     return {"message": "OK"}
 
+@router.post("/get_all_status",
+             summary="Вывод текущего состояния",
+             description="Добавляет новый ответ на вопрос и возвращает его")
+async def get_all_status(service: AnswerService = Depends(get_game_service)):
+    status = await service.get_all_status()
+    return {"status": status}
 
 @router.get("/admin/sections")
 async def get_all_sections(service: GameService = Depends(get_game_service)):
@@ -110,7 +117,7 @@ async def next_question(service_game: GameService = Depends(get_game_service),
             return {"message": "Все вопросы закончены"}
         
         current_section = sections[current_section_index]
-        await _broadcast(f"Переход к разделу: {current_section}")
+        await _broadcast(f"Переход к разделу: {current_section}", service_game)
     
     if data:
         random_question = random.choice(data)
