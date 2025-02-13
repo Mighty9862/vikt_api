@@ -19,7 +19,7 @@ services:
       POSTGRES_DB: vikt
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: admin
-    command: -c 'max_connections=800000'
+    command: -c 'max_connections=10000' #-c 'shared_buffers=256MB'
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

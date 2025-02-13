@@ -92,6 +92,14 @@ async def show_question(service_game: GameService = Depends(get_game_service),
     await _broadcast_spectators(service_game, service_user, service_answer)
     return {"message": "Вопрос показан"}
 
+@router.post("/admin/show_answers")
+async def show_answers(service_game: GameService = Depends(get_game_service),
+                        service_user: UserService = Depends(get_user_service),
+                        service_answer: AnswerService = Depends(get_answer_service)):
+    await service_game.switch_display_mode("answers")
+    await _broadcast_spectators(service_game, service_user, service_answer)
+    return {"message": "Вопрос показан"}
+
 @router.get("/admin/answers")
 async def get_answers(service_answer: AnswerService = Depends(get_answer_service)):
     answers = await service_answer.get_all_answers()
@@ -162,6 +170,23 @@ async def _broadcast_spectators(service_game, service_user, service_answer):
             "type": "rating",
             "players": players,
             "section": current_section
+        }
+    elif status.spectator_display_mode == "answer":
+        players = await service_user.get_all_user()
+
+        players_answer = await service_answer.get_answers_by_question_id(status.current_question)
+
+        message = {
+            "type": "answers",
+            "players": players,
+            "players_answer": players_answer,
+
+            "content": status.current_question,
+            "section": current_section,
+            "answer": answer_for_current_question,
+            "question_image": current_question_image,
+            "answer_image": current_answer_image
+
         }
     else:
         message = {
