@@ -58,31 +58,38 @@ async def get_all_sections(service: GameService = Depends(get_game_service)):
     return {"sections": sections}
 
 @router.post("/admin/start")
-async def start_game(service: GameService = Depends(get_game_service)):
+async def start_game(service_game: GameService = Depends(get_game_service),
+                      service_user: UserService = Depends(get_user_service),
+                      service_answer: AnswerService = Depends(get_answer_service)):
     global answered_users
     answered_users = set()
-    await service.start_game(0, True, False)
-    await _broadcast("Игра начата! Ожидайте первый вопрос.", service)
+    await service_game.start_game(0, True, False)
+    await _broadcast("Игра начата! Ожидайте первый вопрос.", service_game, service_user, service_answer)
     return {"message": "Игра начата"}
 
 @router.post("/admin/stop")
-async def stop_game(service: GameService = Depends(get_game_service)):
-    await service.stop_game()
-    await _broadcast("clear_storage", service)
-    await _broadcast("Игра завершена администратором.", service)
+async def stop_game(service_game: GameService = Depends(get_game_service),
+                      service_user: UserService = Depends(get_user_service),
+                      service_answer: AnswerService = Depends(get_answer_service)):
+    await service_game.stop_game()
+    await _broadcast("clear_storage", service_game, service_user, service_answer)
+    await _broadcast("Игра завершена администратором.", service_game, service_user, service_answer)
     return {"message": "Игра остановлена"}
 
 @router.post("/admin/show_rating")
 async def show_rating(service_game: GameService = Depends(get_game_service),
-                      service_user: UserService = Depends(get_user_service)):
+                      service_user: UserService = Depends(get_user_service),
+                      service_answer: AnswerService = Depends(get_answer_service)):
     await service_game.switch_display_mode("rating")
-    await _broadcast_spectators(service_game,service_user)
+    await _broadcast_spectators(service_game, service_user, service_answer)
     return {"message": "Рейтинг показан"}
 
 @router.post("/admin/show_question")
-async def show_question(service_game: GameService = Depends(get_game_service)):
+async def show_question(service_game: GameService = Depends(get_game_service),
+                        service_user: UserService = Depends(get_user_service),
+                        service_answer: AnswerService = Depends(get_answer_service)):
     await service_game.switch_display_mode("question")
-    await _broadcast_spectators(service_game)
+    await _broadcast_spectators(service_game, service_user, service_answer)
     return {"message": "Вопрос показан"}
 
 @router.get("/admin/answers")
@@ -91,8 +98,10 @@ async def get_answers(service_answer: AnswerService = Depends(get_answer_service
     return {"answers": answers}
 
 @router.post("/admin/next")
-async def next_question(service_game: GameService = Depends(get_game_service), 
-                        service_question: QuestionService = Depends(get_question_service)):
+async def next_question(service_question: QuestionService = Depends(get_question_service),
+                        service_game: GameService = Depends(get_game_service),
+                        service_user: UserService = Depends(get_user_service),
+                        service_answer: AnswerService = Depends(get_answer_service)):
     global answered_users
 
     status = await service_game.get_all_status()
@@ -113,11 +122,11 @@ async def next_question(service_game: GameService = Depends(get_game_service),
         if current_section_index >= 3:  # >= 3
             game_over = True
             await service_game.update_game_over(game_over=True)
-            await _broadcast("Игра завершена! Все разделы пройдены.")
+            await _broadcast("Игра завершена! Все разделы пройдены.", service_game, service_user, service_answer)
             return {"message": "Все вопросы закончены"}
         
         current_section = sections[current_section_index]
-        await _broadcast(f"Переход к разделу: {current_section}", service_game)
+        await _broadcast(f"Переход к разделу: {current_section}", service_game, service_user, service_answer)
     
     if data:
         random_question = random.choice(data)
@@ -130,17 +139,22 @@ async def next_question(service_game: GameService = Depends(get_game_service),
 
         await service_question.delete_question(question=current_question)
         answered_users = set()
-        await _broadcast(current_question, service_game)
+        await _broadcast(current_question, service_game, service_user, service_answer)
     else:
-        await _broadcast("В этом разделе больше нет вопросов")
+        await _broadcast("В этом разделе больше нет вопросов", service_game, service_user, service_answer)
     
     return {"message": "OK"}
 
-async def _broadcast_spectators(service, service_user: UserService = Depends(get_user_service)):
+async def _broadcast_spectators(service_game, service_user, service_answer):
 
-    status = await service.get_all_status()
-    sections = await service.get_sections()
+
+    status = await service_game.get_all_status()
+    sections = await service_game.get_sections()
     current_section = sections[status.current_section_index]
+
+    answer_for_current_question = status.answer_for_current_question
+    current_question_image = status.current_question_image
+    current_answer_image = status.current_answer_image
 
     if status.spectator_display_mode == "rating":
         players = await service_user.get_all_user()
@@ -153,7 +167,10 @@ async def _broadcast_spectators(service, service_user: UserService = Depends(get
         message = {
             "type": "question",
             "content": status.current_question or "Ожидайте следующий вопрос...",
-            "section": current_section
+            "section": current_section,
+            "answer": answer_for_current_question,
+            "question_image": current_question_image,
+            "answer_image": current_answer_image
         }
     
     for spectator in active_spectators.values():
@@ -162,15 +179,21 @@ async def _broadcast_spectators(service, service_user: UserService = Depends(get
         except:
             continue
 
-async def _broadcast(message: str, service_game: GameService = Depends(get_game_service)):
+async def _broadcast(message: str, service_game, service_user, service_answer):
     
     status = await service_game.get_all_status()
     sections = await service_game.get_sections()
     current_section = sections[status.current_section_index]
+    answer_for_current_question = status.answer_for_current_question
+    current_question_image = status.current_question_image
+    current_answer_image = status.current_answer_image
 
     data_player = {
         "text": message,
-        "section": current_section
+        "section": current_section,
+        "answer": answer_for_current_question,
+        "question_image": current_question_image,
+        "answer_image": current_answer_image
     }
 
     for player in active_players.values():
@@ -179,7 +202,7 @@ async def _broadcast(message: str, service_game: GameService = Depends(get_game_
         except:
             continue
     
-    await _broadcast_spectators(service_game)
+    await _broadcast_spectators(service_game, service_user, service_answer)
 
 @router.websocket("/ws/player")
 async def websocket_player(websocket: WebSocket, service_game: GameService = Depends(get_game_service),
@@ -212,14 +235,16 @@ async def websocket_player(websocket: WebSocket, service_game: GameService = Dep
 
     except WebSocketDisconnect:
         del active_players[user_id]
+        #websocket.close()
 
 
 @router.websocket("/ws/spectator")
-async def websocket_spectator(websocket: WebSocket):
+async def websocket_spectator(websocket: WebSocket, service_game: GameService = Depends(get_game_service),
+                           service_user: UserService = Depends(get_user_service), service_answer: AnswerService = Depends(get_answer_service)):
     await websocket.accept()
     active_spectators[id(websocket)] = websocket
     try:
-        await _broadcast_spectators()
+        await _broadcast_spectators(service_game, service_user, service_answer)
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:

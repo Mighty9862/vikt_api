@@ -22,6 +22,7 @@ class AnswerRepository(BaseRepository[Answer]):
         )
         self.session.add(new_answer)
         await self.session.commit()
+        await self.session.close()
         return new_answer
 
     async def get_all_answers(self) -> List[Answer]:
@@ -32,6 +33,7 @@ class AnswerRepository(BaseRepository[Answer]):
         if not res:
             raise self.exception
         
+        await self.session.close()
         return res
 
     async def get_answers_by_question_id(self, question: str) -> List[Answer]:
@@ -42,6 +44,7 @@ class AnswerRepository(BaseRepository[Answer]):
         if not res:
             raise self.exception
         
+        await self.session.close()
         return res
 
     async def get_answers_by_user_id(self, username: str) -> List[Answer]:
@@ -52,6 +55,7 @@ class AnswerRepository(BaseRepository[Answer]):
         if not res:
             raise self.exception
         
+        await self.session.close()
         return res
 
     async def get_answers_by_question_and_user(self, question: str, username: str) -> List[Answer]:
@@ -65,6 +69,7 @@ class AnswerRepository(BaseRepository[Answer]):
         if not res:
             raise self.exception
         
+        await self.session.close()
         return res
     
     async def reset_table(self) -> dict:
@@ -77,5 +82,6 @@ class AnswerRepository(BaseRepository[Answer]):
         await self.session.execute(reset_sequence_query)
 
         await self.session.commit()
-
+        await self.session.close()
+        
         return {"message": "Таблица answers успешно обнулена"}

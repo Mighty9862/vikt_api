@@ -19,8 +19,10 @@ class GameRepository(BaseRepository[GameStatus]):
             current_question_image = current_question_image,
             current_answer_image = current_answer_image
         )
+
         self.session.add(new_gamestatus)
         await self.session.commit()
+        await self.session.close()
         return new_gamestatus
 
     async def get_all_status(self):
@@ -28,6 +30,7 @@ class GameRepository(BaseRepository[GameStatus]):
         stmt = await self.session.execute(query)
         status = stmt.scalars().first()
 
+        await self.session.close()
         return status
     
     async def get_sections(self):
@@ -40,6 +43,7 @@ class GameRepository(BaseRepository[GameStatus]):
         if not sections_list:
             raise "Fail"
         
+        await self.session.close()
         return sections_list
     
     async def start_game(self, current_section_index: int, game_started: bool, game_over: bool):
@@ -53,7 +57,7 @@ class GameRepository(BaseRepository[GameStatus]):
 
         await self.session.commit()
         await self.session.refresh(status)
-
+        await self.session.close()
         return {"message": "Ok"}
 
     async def stop_game(self):
@@ -78,6 +82,7 @@ class GameRepository(BaseRepository[GameStatus]):
         # Сохраняем изменения
         await self.session.commit()
         await self.session.refresh(status)
+        await self.session.close()
         return status
 
     async def switch_display_mode(self, display_mode: str):
@@ -90,6 +95,7 @@ class GameRepository(BaseRepository[GameStatus]):
         self.session.add(status)
         await self.session.commit()
         await self.session.refresh(status)
+        await self.session.close()
 
     async def update_section_index(self, section_index: int):
         query = select(self.model)
@@ -100,6 +106,7 @@ class GameRepository(BaseRepository[GameStatus]):
 
         await self.session.commit()
         await self.session.refresh(status)
+        await self.session.close()
 
     async def update_game_over(self, game_over: bool):
         query = select(self.model)
@@ -110,6 +117,7 @@ class GameRepository(BaseRepository[GameStatus]):
 
         await self.session.commit()
         await self.session.refresh(status)
+        await self.session.close()
 
     async def update_current_question(self, current_question: str, answer_for_current_question: str, current_question_image: str, current_answer_image: str):
         query = select(self.model)
@@ -123,6 +131,7 @@ class GameRepository(BaseRepository[GameStatus]):
 
         await self.session.commit()
         await self.session.refresh(status)
+        await self.session.close()
         
     
     
