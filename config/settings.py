@@ -32,7 +32,7 @@ class DBConfig(BaseModel):
     url: str = DB_URL
     echo: bool = True
     echo_pool: bool = True
-    pool_size: int = 10
+    pool_size: int = 500
     test_url: str = TEST_DB_URL
 
 class JWTConfig(BaseModel):
