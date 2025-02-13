@@ -13,10 +13,10 @@ class AnswerRepository(BaseRepository[Answer]):
     def __init__(self, session: AsyncSession):
         super().__init__(session=session, model=self.model, exception=self.exception)
 
-    async def add_answer(self, question_id: int, user_id: Optional[int], answer: str) -> Answer:
+    async def add_answer(self, question: str, username: str, answer: str) -> Answer:
         new_answer = Answer(
-            question_id=question_id,
-            user_id=user_id,
+            question=question,
+            username=username,
             answer=answer,
             answer_at=(datetime.now()).strftime("%H:%M:%S")
         )
@@ -34,8 +34,8 @@ class AnswerRepository(BaseRepository[Answer]):
         
         return res
 
-    async def get_answers_by_question_id(self, question_id: int) -> List[Answer]:
-        query = select(self.model).where(self.model.question_id == question_id)
+    async def get_answers_by_question_id(self, question: str) -> List[Answer]:
+        query = select(self.model).where(self.model.question == question)
         stmt = await self.session.execute(query)
         res = stmt.scalars().all()
 
@@ -44,8 +44,8 @@ class AnswerRepository(BaseRepository[Answer]):
         
         return res
 
-    async def get_answers_by_user_id(self, user_id: int) -> List[Answer]:
-        query = select(self.model).where(self.model.user_id == user_id)
+    async def get_answers_by_user_id(self, username: str) -> List[Answer]:
+        query = select(self.model).where(self.model.username == username)
         stmt = await self.session.execute(query)
         res = stmt.scalars().all()
 
@@ -54,10 +54,10 @@ class AnswerRepository(BaseRepository[Answer]):
         
         return res
 
-    async def get_answers_by_question_and_user(self, question_id: int, user_id: int) -> List[Answer]:
+    async def get_answers_by_question_and_user(self, question: str, username: str) -> List[Answer]:
         query = select(self.model).where(
-            (self.model.question_id == question_id) & 
-            (self.model.user_id == user_id)
+            (self.model.question == question) & 
+            (self.model.username == username)
         )
         stmt = await self.session.execute(query)
         res = stmt.scalars().all()

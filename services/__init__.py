@@ -3,9 +3,11 @@ __all__ = (
     "LikeService",
     "AnswerService",
     "UserService",
-    "QuestionService"
+    "QuestionService",
+    "GameService"
 )
 
 from .users.UserService import UserService
 from .questions.QuestionService import QuestionService
 from .answers.AnswerService import AnswerService
+from .games.GameService import GameService

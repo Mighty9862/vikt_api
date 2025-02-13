@@ -11,14 +11,14 @@ router = APIRouter(prefix="/answers", tags=["Answers"])
              summary="Добавление нового ответа",
              description="Добавляет новый ответ на вопрос и возвращает его")
 async def add_answer(
-    question_id: int,
-    user_id: Optional[int] = None,
+    question: str,
+    username: str,
     answer: str = None,
     service: AnswerService = Depends(get_answer_service),
     db: AsyncSession = Depends(get_db)
 ):
     try:
-        new_answer = await service.add_answer(question_id=question_id, user_id=user_id, answer=answer)
+        new_answer = await service.add_answer(question=question, username=username, answer=answer)
         return new_answer
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

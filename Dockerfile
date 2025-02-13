@@ -1,3 +1,4 @@
+
 # Используем официальный образ Python
 FROM python:latest
 
@@ -28,4 +29,4 @@ ENTRYPOINT ["/entrypoint.sh"]
 
 # Указываем команду для запуска приложения
 #CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-CMD ["fastapi", "run", "app/main.py", "--proxy-headers", "--port", "8000", "--host", "0.0.0.0", "--workers", "8"]
+CMD ["fastapi", "run", "main.py", "--proxy-headers", "--port", "8000", "--host", "0.0.0.0"]

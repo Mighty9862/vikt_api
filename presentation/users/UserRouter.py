@@ -43,12 +43,12 @@ async def index(
             summary="Изменение количества очков",
             description="Возвращает список с обновленыным количеством очков")
 async def index(
-    user_id: int,
+    username: str,
     points: int,
     service: UserService = Depends(get_user_service)
 ):
     try:
-        user = await service.add_score_to_user(user_id=user_id, points=points)
+        user = await service.add_score_to_user(username=username, points=points)
         return user
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))

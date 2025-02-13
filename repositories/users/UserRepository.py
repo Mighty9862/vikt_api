@@ -42,7 +42,7 @@ class UserRepository(BaseRepository[User]):
     
     
     async def get_all_user(self) -> list[User]:
-        query = select(self.model)
+        query = select(self.model).order_by(self.model.score.desc())
         stmt = await self.session.execute(query)
         res = stmt.scalars().all()
 
@@ -71,9 +71,9 @@ class UserRepository(BaseRepository[User]):
 
         return list(res)
     
-    async def add_score_to_user(self, user_id: int, points: int) -> User:
+    async def add_score_to_user(self, username: str, points: int) -> User:
         # Сначала проверяем, существует ли пользователь
-        query = select(self.model).where(self.model.id == user_id)
+        query = select(self.model).where(self.model.username == username)
         stmt = await self.session.execute(query)
         user = stmt.scalars().first()
 

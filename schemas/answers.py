@@ -4,19 +4,19 @@ from typing import Optional
 
 class AnswerSchema(BaseModel):
     id: int = Field(description="Уникальный идентификатор ответа")
-    question_id: int = Field(description="ID вопроса, на который дан ответ")
-    user_id: Optional[int] = Field(default=None, description="ID пользователя, который оставил ответ (если есть)")
+    question: str = Field(description="вопрос, на который дан ответ")
+    username: str = Field(description="username пользователя, который оставил ответ (если есть)")
     answer: str = Field(description="Текст ответа")
-    answer_at: datetime = Field(description="Дата и время создания ответа")
+    answer_at: str = Field(description="Дата и время создания ответа")
 
     class Config:
         from_attributes = True  # Ранее называлось `orm_mode = True` в Pydantic v1
         json_schema_extra = {
             "example": {
                 "id": 1,
-                "question_id": 10,
-                "user_id": 5,
+                "question": "Вопрос",
+                "username": "Username",
                 "answer": "Это пример ответа на вопрос.",
-                "answer_at": "2023-10-01T12:00:00"
+                "answer_at": "12:00:00"
             }
         }
