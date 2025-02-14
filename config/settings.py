@@ -45,7 +45,7 @@ class JWTConfig(BaseModel):
 
 
 class RedisConfig(BaseModel):
-    url: str = DB_URL
+    url: str = REDIS_URL
     port: int = REDIS_PORT
 
 
