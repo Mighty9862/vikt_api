@@ -4,6 +4,8 @@ from services import UserService, QuestionService, AnswerService, GameService
 from config import DatabaseConnection, settings
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from redis.asyncio import Redis
+
 def get_db() -> DatabaseConnection:
     return DatabaseConnection(
         db_url=settings.db.test_url,
@@ -12,12 +14,21 @@ def get_db() -> DatabaseConnection:
         db_echo=settings.db.echo
     )
     
+async def get_redis():
+    redis = Redis(
+        host=settings.redis.url, 
+        port=settings.redis.port, 
+        db=0)
+    try:
+        yield redis
+    finally:
+        await redis.close()
     
 def get_user_repository(session: AsyncSession = Depends(get_db().sesion_creation)) -> UserRepository:
     return UserRepository(session=session)
 
-def get_question_repository(session: AsyncSession = Depends(get_db().sesion_creation)) -> QuestionRepository:
-    return QuestionRepository(session=session)
+def get_question_repository(session: AsyncSession = Depends(get_db().sesion_creation), redis: Redis = Depends(get_redis)) -> QuestionRepository:
+    return QuestionRepository(session=session, redis=redis)
 
 def get_answer_repository(session: AsyncSession = Depends(get_db().sesion_creation)) -> AnswerRepository:
     return AnswerRepository(session=session)

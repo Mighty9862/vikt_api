@@ -58,11 +58,21 @@ async def get_all_sections(service: GameService = Depends(get_game_service)):
     return {"sections": sections}
 
 @router.post("/admin/start")
-async def start_game(service_game: GameService = Depends(get_game_service),
-                      service_user: UserService = Depends(get_user_service),
-                      service_answer: AnswerService = Depends(get_answer_service)):
+async def start_game(
+    service_game: GameService = Depends(get_game_service),
+    service_user: UserService = Depends(get_user_service),
+    service_answer: AnswerService = Depends(get_answer_service),
+    service_question: QuestionService = Depends(get_question_service)
+):
     global answered_users
     answered_users = set()
+    
+    # Загружаем вопросы для всех разделов при старте игры
+    sections = await service_game.get_sections()
+    for section in sections:
+        if not await service_question.has_questions(section):
+            await service_question.load_questions_to_redis(section)
+    
     await service_game.start_game(0, True, False)
     await _broadcast("Игра начата! Ожидайте первый вопрос.", service_game, service_user, service_answer)
     return {"message": "Игра начата"}
@@ -105,11 +115,21 @@ async def get_answers(service_answer: AnswerService = Depends(get_answer_service
     answers = await service_answer.get_all_answers()
     return {"answers": answers}
 
+@router.post("/admin/reload-questions")
+async def reload_questions(
+    section: str,
+    service_question: QuestionService = Depends(get_question_service)
+):
+    await service_question.load_questions_to_redis(section)
+    return {"status": f"Questions for {section} reloaded"}
+
 @router.post("/admin/next")
-async def next_question(service_question: QuestionService = Depends(get_question_service),
-                        service_game: GameService = Depends(get_game_service),
-                        service_user: UserService = Depends(get_user_service),
-                        service_answer: AnswerService = Depends(get_answer_service)):
+async def next_question(
+    service_question: QuestionService = Depends(get_question_service),
+    service_game: GameService = Depends(get_game_service),
+    service_user: UserService = Depends(get_user_service),
+    service_answer: AnswerService = Depends(get_answer_service)
+):
     global answered_users
 
     status = await service_game.get_all_status()
@@ -117,41 +137,47 @@ async def next_question(service_question: QuestionService = Depends(get_question
         return {"message": "Игра не активна"}
     
     sections = await service_game.get_sections()
-    current_section = sections[status.current_section_index]
     current_section_index = status.current_section_index
 
-    game_over = status.game_over
+    if not sections:
+        raise HTTPException(status_code=400, detail="Нет доступных разделов")
 
-    
-    data = await service_question.get_question_by_section(current_section)
-    if not data:
-        current_section_index += 1
-        await service_game.update_section_index(section_index=current_section_index)
-        if current_section_index >= 3:  # >= 3
-            game_over = True
-            await service_game.update_game_over(game_over=True)
-            await _broadcast("Игра завершена! Все разделы пройдены.", service_game, service_user, service_answer)
-            return {"message": "Все вопросы закончены"}
-        
+    # Основной цикл обработки разделов
+    while True:
+        # Проверка завершения игры
+        if current_section_index >= len(sections):
+            await service_game.update_game_over(True)
+            await _broadcast("Игра завершена!", service_game, service_user, service_answer)
+            return {"message": "Все разделы пройдены"}
+
         current_section = sections[current_section_index]
-        await _broadcast(f"Переход к разделу: {current_section}", service_game, service_user, service_answer)
-    
-    if data:
-        random_question = random.choice(data)
-        current_question = random_question.question
-        answer_for_current_question = random_question.answer
-        current_question_image = random_question.question_image
-        current_answer_image = random_question.answer_image
-
-        await service_game.update_current_question(current_question=current_question, answer_for_current_question=answer_for_current_question, current_question_image=current_question_image, current_answer_image=current_answer_image)
-
-        await service_question.delete_question(question=current_question)
-        answered_users = set()
-        await _broadcast(current_question, service_game, service_user, service_answer)
-    else:
-        await _broadcast("В этом разделе больше нет вопросов", service_game, service_user, service_answer)
-    
-    return {"message": "OK"}
+        
+        # Получаем вопрос из Redis
+        question = await service_question.get_random_question(current_section)
+        
+        if question:
+            # Обновляем состояние игры
+            await service_game.update_current_question(
+                current_question=question.question,
+                answer_for_current_question=question.answer,
+                current_question_image=question.question_image,
+                current_answer_image=question.answer_image
+            )
+            
+            answered_users = set()
+            await _broadcast(question.question, service_game, service_user, service_answer)
+            return {"message": "OK"}
+        else:
+            # Переходим к следующему разделу
+            current_section_index += 1
+            if current_section_index > 2:
+                return {"message": "Все вопросы пройдены. Игра завершена!"}
+            await service_game.update_section_index(current_section_index)
+                
+            # Загружаем вопросы для нового раздела
+            new_section = sections[current_section_index]
+            if not await service_question.has_questions(new_section):
+                await service_question.load_questions_to_redis(new_section)
 
 async def _broadcast_spectators(service_game, service_user, service_answer):
 

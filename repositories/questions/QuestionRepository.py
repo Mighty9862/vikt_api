@@ -1,15 +1,20 @@
-from typing import List
+import json
+from typing import List, Optional
 from ..base.base_repository import BaseRepository
 from models import Question
 from sqlalchemy.ext.asyncio import AsyncSession
 from .exceptions.exceptions import UserNotFoundException, UserNotExistsException, UserExistsException
 from sqlalchemy import select, delete, text
+from schemas.questions import QuestionSchema
+
+from redis.asyncio import Redis
 
 class QuestionRepository(BaseRepository[Question]):
     model: Question = Question
     exception: UserNotFoundException = UserNotFoundException()
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, redis: Redis):
+        self.redis = redis
         super().__init__(session=session, model=self.model, exception=self.exception)
 
     async def add_question_from_list(self, questions_data: list[dict]) -> Question:
@@ -102,6 +107,32 @@ class QuestionRepository(BaseRepository[Question]):
         return {
             "message": "Вопрос успешно удален"
         }
+    
+    async def load_questions_to_redis(self, section: str):
+        # Удаляем старые вопросы перед загрузкой новых
+        await self.redis.delete(section)
+        
+        # Получаем вопросы из базы данных
+        query = select(self.model).where(self.model.section == section)
+        result = await self.session.execute(query)
+        questions = result.scalars().all()
+        
+        # Сериализуем и загружаем в Redis
+        for question in questions:
+            question_data = QuestionSchema.from_orm(question).dict()
+            # Сохраняем данные в Redis
+            await self.redis.sadd(section, json.dumps(question_data, ensure_ascii=False))
+
+    # Пример получения данных из Redis
+    async def get_random_question(self, section: str) -> Optional[QuestionSchema]:
+        question_json = await self.redis.spop(section)
+        if question_json:
+            # Декодируем данные из байтового формата
+            return QuestionSchema(**json.loads(question_json.decode('utf-8')))
+        return None
+
+    async def has_questions(self, section: str) -> bool:
+        return await self.redis.scard(section) > 0 
     
     
     

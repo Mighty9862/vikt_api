@@ -10,6 +10,10 @@ class QuestionSchema(BaseModel):
     question_image: str
     answer_image: str
 
+    class Config:
+        #from_orm = True
+        from_attributes = True
+
 class QuestionReadSchema(BaseModel):
     question: str
     answer: str

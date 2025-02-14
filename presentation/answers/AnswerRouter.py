@@ -36,45 +36,45 @@ async def get_all_answers(
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-@router.get("/question/{question_id}",
+@router.get("/question/{question}",
             summary="Получение ответов по ID вопроса",
             description="Возвращает список ответов на конкретный вопрос")
 async def get_answers_by_question_id(
-    question_id: int,
+    question: str,
     service: AnswerService = Depends(get_answer_service),
     db: AsyncSession = Depends(get_db)
 ):
     try:
-        answers = await service.get_answers_by_question_id(question_id=question_id)
+        answers = await service.get_answers_by_question_id(question=question)
         return answers
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-@router.get("/user/{user_id}",
+@router.get("/user/{username}",
             summary="Получение ответов по ID пользователя",
             description="Возвращает список ответов конкретного пользователя")
 async def get_answers_by_user_id(
-    user_id: int,
+    username: str,
     service: AnswerService = Depends(get_answer_service),
     db: AsyncSession = Depends(get_db)
 ):
     try:
-        answers = await service.get_answers_by_user_id(user_id=user_id)
+        answers = await service.get_answers_by_user_id(username=username)
         return answers
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-@router.get("/question/{question_id}/user/{user_id}",
+@router.get("/question/{question}/user/{username}",
             summary="Получение ответов по ID вопроса и ID пользователя",
             description="Возвращает список ответов на конкретный вопрос от конкретного пользователя")
 async def get_answers_by_question_and_user(
-    question_id: int,
-    user_id: int,
+    question: str,
+    username: str,
     service: AnswerService = Depends(get_answer_service),
     db: AsyncSession = Depends(get_db)
 ):
     try:
-        answers = await service.get_answers_by_question_and_user(question_id=question_id, user_id=user_id)
+        answers = await service.get_answers_by_question_and_user(question=question, username=username)
         return answers
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))

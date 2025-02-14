@@ -29,6 +29,19 @@ class QuestionService:
     
     async def reset_question_table(self):
         return await self.repository.reset_table()
+    
+    async def load_questions_to_redis(self, section: str):
+        return await self.repository.load_questions_to_redis(section=section)
+    
+    async def get_random_question(self, section: str):
+        return await self.repository.get_random_question(section=section)
+    
+    async def has_questions(self, section: str):
+        return await self.repository.has_questions(section=section)
+
+
+
+
 
     
 

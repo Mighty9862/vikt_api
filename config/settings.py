@@ -17,6 +17,9 @@ PORT: int = os.environ.get("PORT")
 
 JWT_SECRET: str = os.environ.get("JWT_SECRET")
 
+REDIS_URL: str = os.environ.get("REDIS_URL")
+REDIS_PORT: int = os.environ.get("REDIS_PORT")
+
 
 class RunConfig(BaseModel):
     port: int = PORT
@@ -41,13 +44,19 @@ class JWTConfig(BaseModel):
     refresh_token_expires_minutes: int = 60 * 24 * 30
 
 
+class RedisConfig(BaseModel):
+    url: str = DB_URL
+    port: int = REDIS_PORT
+
 
 #----------------------------------------------------------------
 class Settings(BaseSettings):
     db: DBConfig = DBConfig()
     jwt: JWTConfig =JWTConfig()
     cors: CORSConfig = CORSConfig()
+    redis: RedisConfig = RedisConfig()
     run: RunConfig = RunConfig()
+    
     
     
 
