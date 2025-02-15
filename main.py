@@ -1,5 +1,7 @@
+import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 #from starlette.middleware.cors import CORSMiddleware as CORSMiddleware
 import uvicorn
 from presentation import router as ApiV2Router
@@ -36,7 +38,11 @@ API предоставляет обширные функции управлен�
     """
 )
 
+relative_path = "static/images/"
+absolute_path = os.path.abspath(relative_path)
+
 app.include_router(router=ApiV2Router)
+app.mount("/static/images/", StaticFiles(directory=absolute_path), "static")
 app.add_middleware(
     CORSMiddleware,
     allow_origins="*",
