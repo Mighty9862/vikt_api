@@ -80,7 +80,6 @@ class GameRepository(BaseRepository[GameStatus]):
             status.timer = False
             status.spectator_display_mode = "question"
         
-        # Сохраняем изменения
         await self.session.commit()
         await self.session.refresh(status)
         await self.session.close()

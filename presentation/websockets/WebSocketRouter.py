@@ -67,7 +67,6 @@ async def start_game(
     global answered_users
     answered_users = set()
     
-    # Загружаем вопросы для всех разделов при старте игры
     sections = await service_game.get_sections()
     for section in sections:
         if not await service_question.has_questions(section):
@@ -150,9 +149,7 @@ async def next_question(
     if not sections:
         raise HTTPException(status_code=400, detail="Нет доступных разделов")
 
-    # Основной цикл обработки разделов
     while True:
-        # Проверка завершения игры
         if current_section_index >= len(sections):
             await service_game.update_game_over(True)
             await _broadcast("Игра завершена!", service_game, service_user, service_answer)
@@ -160,11 +157,9 @@ async def next_question(
 
         current_section = sections[current_section_index]
         
-        # Получаем вопрос из Redis
         question = await service_question.get_random_question(current_section)
         
         if question:
-            # Обновляем состояние игры
             await service_game.update_current_question(
                 current_question=question.question,
                 answer_for_current_question=question.answer,
@@ -178,13 +173,11 @@ async def next_question(
             await _broadcast(question.question, service_game, service_user, service_answer)
             return {"message": "OK"}
         else:
-            # Переходим к следующему разделу
             current_section_index += 1
             if current_section_index > 2:
                 return {"message": "Все вопросы пройдены. Игра завершена!"}
             await service_game.update_section_index(current_section_index)
                 
-            # Загружаем вопросы для нового раздела
             new_section = sections[current_section_index]
             if not await service_question.has_questions(new_section):
                 await service_question.load_questions_to_redis(new_section)
@@ -196,7 +189,7 @@ async def next_section(
     service_user: UserService = Depends(get_user_service),
     service_answer: AnswerService = Depends(get_answer_service)
 ):
-    # Получаем текущий статус игры
+
     status = await service_game.get_all_status()
     if not status.game_started or status.game_over:
         raise HTTPException(status_code=400, detail="Игра не активна")
@@ -204,34 +197,27 @@ async def next_section(
     sections = await service_game.get_sections()
     current_section_index = status.current_section_index
 
-    # Очищаем вопросы текущего раздела
     current_section = sections[current_section_index]
-    await service_question.clear_questions(current_section)  # Новый метод для очистки
+    await service_question.clear_questions(current_section) 
 
     new_section_index = current_section_index + 1
 
-    # Проверяем выход за пределы доступных разделов
     if new_section_index >= len(sections):
         await service_game.update_game_over(True)
         await _broadcast("Игра завершена!", service_game, service_user, service_answer)
         return {"message": "Все разделы пройдены"}
 
-    # Обновляем индекс раздела
     await service_game.update_section_index(new_section_index)
     
-    # Получаем новый раздел
     new_section = sections[new_section_index]
 
-    # Загружаем вопросы нового раздела
     if not await service_question.has_questions(new_section):
         await service_question.load_questions_to_redis(new_section)
 
-    # Получаем первый вопрос раздела
     question = await service_question.get_random_question(new_section)
     if not question:
         raise HTTPException(status_code=404, detail="Нет вопросов в разделе")
 
-    # Обновляем текущий вопрос
     await service_game.update_current_question(
         current_question=question.question,
         answer_for_current_question=question.answer,
@@ -240,11 +226,9 @@ async def next_section(
         timer_status=False
     )
 
-    # Сбрасываем ответивших игроков
     global answered_users
     answered_users = set()
 
-    # Отправляем новый вопрос
     await _broadcast(question.question, service_game, service_user, service_answer)
     return {"message": "Переход к разделу выполнен"}
 
