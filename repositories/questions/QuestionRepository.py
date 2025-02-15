@@ -134,5 +134,7 @@ class QuestionRepository(BaseRepository[Question]):
     async def has_questions(self, section: str) -> bool:
         return await self.redis.scard(section) > 0 
     
+    async def clear_questions(self, section: str):
+        await self.redis.delete(f"questions:{section}")
     
     

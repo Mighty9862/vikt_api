@@ -32,8 +32,11 @@ class GameService:
     async def update_game_over(self, game_over: bool):
         return await self.repository.update_game_over(game_over=game_over)
     
-    async def update_current_question(self, current_question: str, answer_for_current_question: str, current_question_image: str, current_answer_image: str):
-        return await self.repository.update_current_question(current_question=current_question, answer_for_current_question=answer_for_current_question, current_question_image=current_question_image, current_answer_image=current_answer_image)
+    async def update_timer_status(self, timer: bool):
+        return await self.repository.update_timer_status(timer=timer)
+    
+    async def update_current_question(self, current_question: str, answer_for_current_question: str, current_question_image: str, current_answer_image: str, timer_status: bool):
+        return await self.repository.update_current_question(current_question=current_question, answer_for_current_question=answer_for_current_question, current_question_image=current_question_image, current_answer_image=current_answer_image, timer_status=timer_status)
     
     
 

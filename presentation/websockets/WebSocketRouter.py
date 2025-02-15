@@ -108,7 +108,15 @@ async def show_answers(service_game: GameService = Depends(get_game_service),
                         service_answer: AnswerService = Depends(get_answer_service)):
     await service_game.switch_display_mode("answers")
     await _broadcast_spectators(service_game, service_user, service_answer)
-    return {"message": "Вопрос показан"}
+    return {"message": "Ответ показан"}
+
+@router.post("/admin/start_timer")
+async def update_timer(service_game: GameService = Depends(get_game_service),
+                        service_user: UserService = Depends(get_user_service),
+                        service_answer: AnswerService = Depends(get_answer_service)):
+    await service_game.update_timer_status(True)
+    await _broadcast_spectators(service_game, service_user, service_answer)
+    return {"message": "Таймер запущен"}
 
 @router.get("/admin/answers")
 async def get_answers(service_answer: AnswerService = Depends(get_answer_service)):
@@ -161,7 +169,9 @@ async def next_question(
                 current_question=question.question,
                 answer_for_current_question=question.answer,
                 current_question_image=question.question_image,
-                current_answer_image=question.answer_image
+                current_answer_image=question.answer_image,
+                timer_status=False
+
             )
             
             answered_users = set()
@@ -179,9 +189,66 @@ async def next_question(
             if not await service_question.has_questions(new_section):
                 await service_question.load_questions_to_redis(new_section)
 
+@router.post("/admin/next_section")
+async def next_section(
+    service_game: GameService = Depends(get_game_service),
+    service_question: QuestionService = Depends(get_question_service),
+    service_user: UserService = Depends(get_user_service),
+    service_answer: AnswerService = Depends(get_answer_service)
+):
+    # Получаем текущий статус игры
+    status = await service_game.get_all_status()
+    if not status.game_started or status.game_over:
+        raise HTTPException(status_code=400, detail="Игра не активна")
+
+    sections = await service_game.get_sections()
+    current_section_index = status.current_section_index
+
+    # Очищаем вопросы текущего раздела
+    current_section = sections[current_section_index]
+    await service_question.clear_questions(current_section)  # Новый метод для очистки
+
+    new_section_index = current_section_index + 1
+
+    # Проверяем выход за пределы доступных разделов
+    if new_section_index >= len(sections):
+        await service_game.update_game_over(True)
+        await _broadcast("Игра завершена!", service_game, service_user, service_answer)
+        return {"message": "Все разделы пройдены"}
+
+    # Обновляем индекс раздела
+    await service_game.update_section_index(new_section_index)
+    
+    # Получаем новый раздел
+    new_section = sections[new_section_index]
+
+    # Загружаем вопросы нового раздела
+    if not await service_question.has_questions(new_section):
+        await service_question.load_questions_to_redis(new_section)
+
+    # Получаем первый вопрос раздела
+    question = await service_question.get_random_question(new_section)
+    if not question:
+        raise HTTPException(status_code=404, detail="Нет вопросов в разделе")
+
+    # Обновляем текущий вопрос
+    await service_game.update_current_question(
+        current_question=question.question,
+        answer_for_current_question=question.answer,
+        current_question_image=question.question_image,
+        current_answer_image=question.answer_image,
+        timer_status=False
+    )
+
+    # Сбрасываем ответивших игроков
+    global answered_users
+    answered_users = set()
+
+    # Отправляем новый вопрос
+    await _broadcast(question.question, service_game, service_user, service_answer)
+    return {"message": "Переход к разделу выполнен"}
+
 async def _broadcast_spectators(service_game, service_user, service_answer):
-
-
     status = await service_game.get_all_status()
     sections = await service_game.get_sections()
     current_section = sections[status.current_section_index]
@@ -189,6 +256,7 @@ async def _broadcast_spectators(service_game, service_user, service_answer):
     answer_for_current_question = status.answer_for_current_question
     current_question_image = status.current_question_image
     current_answer_image = status.current_answer_image
+    timer = status.timer
 
     if status.spectator_display_mode == "rating":
         players = await service_user.get_all_user()
@@ -221,7 +289,8 @@ async def _broadcast_spectators(service_game, service_user, service_answer):
             "section": current_section,
             "answer": answer_for_current_question,
             "question_image": current_question_image,
-            "answer_image": current_answer_image
+            "answer_image": current_answer_image,
+            "timer": timer
         }
     
     for spectator in active_spectators.values():
@@ -238,13 +307,15 @@ async def _broadcast(message: str, service_game, service_user, service_answer):
     answer_for_current_question = status.answer_for_current_question
     current_question_image = status.current_question_image
     current_answer_image = status.current_answer_image
+    timer = status.timer
 
     data_player = {
         "text": message,
         "section": current_section,
         "answer": answer_for_current_question,
         "question_image": current_question_image,
-        "answer_image": current_answer_image
+        "answer_image": current_answer_image,
+        "timer": timer
     }
 
     for player in active_players.values():

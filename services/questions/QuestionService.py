@@ -38,6 +38,10 @@ class QuestionService:
     
     async def has_questions(self, section: str):
         return await self.repository.has_questions(section=section)
+    
+    async def clear_questions(self, section: str):
+        return await self.repository.has_questions(section=section)
+    
 
 
 
