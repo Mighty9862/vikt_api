@@ -136,5 +136,12 @@ class QuestionRepository(BaseRepository[Question]):
     
     async def clear_questions(self, section: str):
         await self.redis.delete(f"questions:{section}")
-    
+
+    async def clear_redis(self):
+        try:
+            await self.redis.flushall()
+            return {"message": "Redis успешно очищен"}
+        except Exception as e:
+            return {"error": f"Ошибка при очистке Redis: {str(e)}"}
+        
     

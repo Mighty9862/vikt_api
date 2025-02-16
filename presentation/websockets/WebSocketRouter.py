@@ -11,8 +11,9 @@ from dependencies import get_game_service, get_user_service, get_question_servic
 
 from services.users.UserService import UserService
 from services.games.GameService import GameService
-from services.answers.AnswerService import AnswerService
+from services.answers.AnswerService import AnswerService 
 
+#TODO: Слить ветку в мейн
 
 
 router = APIRouter(prefix="/websocket", tags=["WebSocket"])
@@ -114,7 +115,7 @@ async def update_timer(service_game: GameService = Depends(get_game_service),
                         service_user: UserService = Depends(get_user_service),
                         service_answer: AnswerService = Depends(get_answer_service)):
     status = await service_game.get_all_status()
-    
+
     await service_game.update_timer_status(True)
     await _broadcast(status.current_question or "Ожидайте вопрос", service_game, service_user, service_answer)
     return {"message": "Таймер запущен"}
@@ -233,6 +234,13 @@ async def next_section(
 
     await _broadcast(question.question, service_game, service_user, service_answer)
     return {"message": "Переход к разделу выполнен"}
+
+@router.post("/admin/clear-redis")
+async def clear_redis(
+    service_question: QuestionService = Depends(get_question_service)
+):
+    result = await service_question.clear_redis()
+    return result
 
 async def _broadcast_spectators(service_game, service_user, service_answer):
     status = await service_game.get_all_status()
