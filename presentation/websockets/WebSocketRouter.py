@@ -114,6 +114,7 @@ async def update_timer(service_game: GameService = Depends(get_game_service),
                         service_user: UserService = Depends(get_user_service),
                         service_answer: AnswerService = Depends(get_answer_service)):
     status = await service_game.get_all_status()
+    
     await service_game.update_timer_status(True)
     await _broadcast(status.current_question or "Ожидайте вопрос", service_game, service_user, service_answer)
     return {"message": "Таймер запущен"}
