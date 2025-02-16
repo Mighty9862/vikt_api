@@ -113,8 +113,10 @@ async def show_answers(service_game: GameService = Depends(get_game_service),
 async def update_timer(service_game: GameService = Depends(get_game_service),
                         service_user: UserService = Depends(get_user_service),
                         service_answer: AnswerService = Depends(get_answer_service)):
+    status = await service_game.get_all_status()
     await service_game.update_timer_status(True)
-    await _broadcast_spectators(service_game, service_user, service_answer)
+    # Отправляем текущий вопрос, чтобы сохранить его на экране
+    await _broadcast(status.current_question or "Ожидайте вопрос", service_game, service_user, service_answer)
     return {"message": "Таймер запущен"}
 
 @router.get("/admin/answers")
@@ -249,7 +251,7 @@ async def _broadcast_spectators(service_game, service_user, service_answer):
             "players": players,
             "section": current_section
         }
-    elif status.spectator_display_mode == "answer":
+    elif status.spectator_display_mode == "answers":
         players = await service_user.get_all_user()
 
         players_answer = await service_answer.get_answers_by_question_id(status.current_question)
@@ -266,6 +268,7 @@ async def _broadcast_spectators(service_game, service_user, service_answer):
             "answer_image": current_answer_image
 
         }
+        
     else:
         message = {
             "type": "question",
@@ -277,6 +280,9 @@ async def _broadcast_spectators(service_game, service_user, service_answer):
             "timer": timer
         }
     
+    print(f"Display mode: {status.spectator_display_mode}")
+    print(f"Message being sent: {message}")
+
     for spectator in active_spectators.values():
         try:
             await spectator.send_text(json.dumps(message))
