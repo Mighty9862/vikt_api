@@ -40,9 +40,6 @@ class AnswerRepository(BaseRepository[Answer]):
         query = select(self.model).where(self.model.question == question)
         stmt = await self.session.execute(query)
         res = stmt.scalars().all()
-
-        if not res:
-            raise self.exception
         
         await self.session.close()
         return res
