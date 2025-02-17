@@ -5,6 +5,7 @@ from .exceptions.exceptions import AnswerNotFoundException
 from sqlalchemy import delete, select, text
 from typing import List, Optional
 from datetime import datetime
+import pytz
 
 class AnswerRepository(BaseRepository[Answer]):
     model: Answer = Answer
@@ -14,11 +15,14 @@ class AnswerRepository(BaseRepository[Answer]):
         super().__init__(session=session, model=self.model, exception=self.exception)
 
     async def add_answer(self, question: str, username: str, answer: str) -> Answer:
+        moscow_tz = pytz.timezone('Europe/Moscow')
+        moscow_time = datetime.now(moscow_tz)
+
         new_answer = Answer(
             question=question,
             username=username,
             answer=answer,
-            answer_at=(datetime.now()).strftime("%H:%M:%S")
+            answer_at=moscow_time.strftime("%H:%M:%S")
         )
         self.session.add(new_answer)
         await self.session.commit()

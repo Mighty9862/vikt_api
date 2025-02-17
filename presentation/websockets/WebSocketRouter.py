@@ -102,13 +102,15 @@ async def show_question(service_game: GameService = Depends(get_game_service),
     await _broadcast_spectators(service_game, service_user, service_answer)
     return {"message": "Вопрос показан"}
 
-@router.post("/admin/show_answers")
-async def show_answers(service_game: GameService = Depends(get_game_service),
+@router.post("/admin/show_answer")
+async def update_answer_status(service_game: GameService = Depends(get_game_service),
                         service_user: UserService = Depends(get_user_service),
                         service_answer: AnswerService = Depends(get_answer_service)):
-    await service_game.switch_display_mode("answers")
-    await _broadcast_spectators(service_game, service_user, service_answer)
-    return {"message": "Ответ показан"}
+    status = await service_game.get_all_status()
+
+    await service_game.update_answer_status(True)
+    await _broadcast(status.current_question or "Ожидайте вопрос", service_game, service_user, service_answer)
+    return {"message": "Правильный ответ показан"}
 
 @router.post("/admin/start_timer")
 async def update_timer(service_game: GameService = Depends(get_game_service),
@@ -168,7 +170,8 @@ async def next_question(
                 answer_for_current_question=question.answer,
                 current_question_image=question.question_image,
                 current_answer_image=question.answer_image,
-                timer_status=False
+                timer_status=False, 
+                show_answer=False
 
             )
             
@@ -226,7 +229,8 @@ async def next_section(
         answer_for_current_question=question.answer,
         current_question_image=question.question_image,
         current_answer_image=question.answer_image,
-        timer_status=False
+        timer_status=False,
+        show_answer=False
     )
 
     global answered_users
@@ -251,6 +255,7 @@ async def _broadcast_spectators(service_game, service_user, service_answer):
     current_question_image = status.current_question_image
     current_answer_image = status.current_answer_image
     timer = status.timer
+    show_answer = status.show_answer
 
     if status.spectator_display_mode == "rating":
         players = await service_user.get_all_user()
@@ -258,23 +263,6 @@ async def _broadcast_spectators(service_game, service_user, service_answer):
             "type": "rating",
             "players": players,
             "section": current_section
-        }
-    elif status.spectator_display_mode == "answers":
-        players = await service_user.get_all_user()
-
-        players_answer = await service_answer.get_answers_by_question_id(status.current_question)
-
-        message = {
-            "type": "answers",
-            "players": players,
-            "players_answer": players_answer,
-
-            "content": status.current_question,
-            "section": current_section,
-            "answer": answer_for_current_question,
-            "question_image": current_question_image,
-            "answer_image": current_answer_image
-
         }
         
     else:
@@ -285,7 +273,8 @@ async def _broadcast_spectators(service_game, service_user, service_answer):
             "answer": answer_for_current_question,
             "question_image": current_question_image,
             "answer_image": current_answer_image,
-            "timer": timer
+            "timer": timer,
+            "show_answer": show_answer
         }
     
     print(f"Display mode: {status.spectator_display_mode}")
@@ -306,6 +295,7 @@ async def _broadcast(message: str, service_game, service_user, service_answer):
     current_question_image = status.current_question_image
     current_answer_image = status.current_answer_image
     timer = status.timer
+    show_answer = status.show_answer
 
     data_player = {
         "text": message,
@@ -313,7 +303,8 @@ async def _broadcast(message: str, service_game, service_user, service_answer):
         "answer": answer_for_current_question,
         "question_image": current_question_image,
         "answer_image": current_answer_image,
-        "timer": timer
+        "timer": timer,
+        "show_answer": show_answer
     }
 
     for player in active_players.values():

@@ -1,17 +1,8 @@
-import socket
-print(socket.gethostname())
+from datetime import datetime
+import pytz
 
 
-try:    
-            data = await websocket.receive_text()
-            #name = json.loads(data)["name"]
-            if (json.loads(data))["type"] == "name":                  # {"type":"name", "name":"test"}
-                datas = await service.get_all_question()
-                res = {"questions": [{"id": q.id, "chapter": q.chapter, "question": q.question} for q in datas]}
-                
+moscow_tz = pytz.timezone('Europe/Moscow')
+moscow_time = datetime.now(moscow_tz)
 
-                await websocket.send_json(res)
-            else: 
-                await websocket.send_json({"username":"test", "score":"20"})
-        except JSONDecodeError as e:
-            await websocket.send_text(f'Входящие данные должны быть json формата: {str(e)}')
+print()

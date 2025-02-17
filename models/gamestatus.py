@@ -19,6 +19,8 @@ class GameStatus(Base):
     game_over: Mapped[bool] = mapped_column(Boolean, nullable=True, default=False)
     timer: Mapped[bool] = mapped_column(Boolean, nullable=True, default=False)
 
+    show_answer: Mapped[bool] = mapped_column(Boolean, nullable=True, default=False)
+
     spectator_display_mode: Mapped[str] = mapped_column(Text, nullable=True, default="question")
 
     # Связь с таблицей answers

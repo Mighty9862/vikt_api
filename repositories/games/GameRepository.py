@@ -78,6 +78,7 @@ class GameRepository(BaseRepository[GameStatus]):
             status.game_started = False
             status.game_over = False
             status.timer = False
+            status.show_answer=False
             status.spectator_display_mode = "question"
         
         await self.session.commit()
@@ -130,7 +131,18 @@ class GameRepository(BaseRepository[GameStatus]):
         await self.session.refresh(status)
         await self.session.close()
 
-    async def update_current_question(self, current_question: str, answer_for_current_question: str, current_question_image: str, current_answer_image: str, timer_status: bool):
+    async def update_answer_status(self, show_answer: bool):
+        query = select(self.model)
+        stmt = await self.session.execute(query)
+        status = stmt.scalars().first()
+
+        status.show_answer = show_answer
+
+        await self.session.commit()
+        await self.session.refresh(status)
+        await self.session.close()
+
+    async def update_current_question(self, current_question: str, answer_for_current_question: str, current_question_image: str, current_answer_image: str, timer_status: bool, show_answer: bool):
         query = select(self.model)
         stmt = await self.session.execute(query)
         status = stmt.scalars().first()
@@ -140,6 +152,7 @@ class GameRepository(BaseRepository[GameStatus]):
         status.current_question_image = current_question_image
         status.current_answer_image = current_answer_image
         status.timer = timer_status
+        status.show_answer = show_answer
 
         await self.session.commit()
         await self.session.refresh(status)
