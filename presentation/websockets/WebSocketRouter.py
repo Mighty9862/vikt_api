@@ -431,12 +431,22 @@ async def websocket_player(websocket: WebSocket, service_game: GameService = Dep
         data = await websocket.receive_text()
         name = json.loads(data)["name"]
         
-        # Если игрок уже существует, добавляем новое соединение
+        # Если игрок уже существует
         if name in active_players:
-            # Закрываем старые соединения
-            old_ws = active_players[name]['ws']
+            # Проверяем, активно ли текущее соединение
+            current_ws = active_players[name]['ws']
             try:
-                await old_ws.close()
+                # Проверяем старое соединение
+                if await is_connection_active(current_ws):
+                    # Если старое соединение активно, закрываем новое
+                    await websocket.close()
+                    return
+                else:
+                    # Если старое соединение неактивно, закрываем его
+                    try:
+                        await current_ws.close()
+                    except:
+                        pass
             except:
                 pass
             
@@ -446,7 +456,8 @@ async def websocket_player(websocket: WebSocket, service_game: GameService = Dep
             'connections': {connection_id}
         }
         
-        logger.info(f"👤 Игрок {name} присоединился к игре. Всего игроков: {len(active_players)}")
+        if name not in active_players:
+            logger.info(f"👤 Игрок {name} присоединился к игре. Всего игроков: {len(active_players)}")
 
         status = await service_game.get_all_status()
         sections = await service_game.get_sections()
@@ -478,13 +489,9 @@ async def websocket_player(websocket: WebSocket, service_game: GameService = Dep
                 answered_users.add(name)
 
     except WebSocketDisconnect:
-        # Удаляем только конкретное соединение
-        for name, player in list(active_players.items()):
-            if connection_id in player['connections']:
-                player['connections'].remove(connection_id)
-                if not player['connections']:  # Если нет активных соединений
-                    del active_players[name]
-                    logger.info(f"🔴 Игрок {name} отключился. Осталось игроков: {len(active_players)}")
+        if name in active_players and active_players[name]['ws'] == websocket:
+            del active_players[name]
+            logger.info(f"🔴 Игрок {name} отключился. Осталось игроков: {len(active_players)}")
     finally:
         cleanup_task.cancel()
 
