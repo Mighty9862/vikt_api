@@ -51,9 +51,17 @@ async def invalidate_game_status_cache():
 # Добавляем новую функцию для проверки активности соединения
 async def is_connection_active(websocket: WebSocket) -> bool:
     try:
-        await websocket.ping()
+        # Добавляем таймаут в 5 секунд для ping-операции
+        await asyncio.wait_for(websocket.ping(), timeout=5.0)
         return True
-    except:
+    except asyncio.TimeoutError:
+        logger.warning("Таймаут WebSocket ping-запроса")
+        return False
+    except WebSocketDisconnect:
+        logger.warning("WebSocket отключен во время ping-запроса")
+        return False
+    except Exception as e:
+        logger.error(f"Неожиданная ошибка во время ping-запроса: {str(e)}")
         return False
 
 @router.post("/",
