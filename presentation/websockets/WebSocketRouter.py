@@ -26,7 +26,7 @@ logger = setup_logging()
 router = APIRouter(prefix="/websocket", tags=["WebSocket"])
 
 answered_users = set()
-active_players = {}       # {id: {'ws': WebSocket, 'name': str}}
+active_players = {}  # {username: {'ws': WebSocket, 'connections': set()}}
 active_spectators = {}    # {id: WebSocket}
 
 # Добавим кэширование состояния игры
@@ -51,8 +51,11 @@ async def invalidate_game_status_cache():
 # Добавляем новую функцию для проверки активности соединения
 async def is_connection_active(websocket: WebSocket) -> bool:
     try:
-        # Добавляем таймаут в 5 секунд для ping-операции
-        await asyncio.wait_for(websocket.ping(), timeout=5.0)
+        # Отправляем текстовое сообщение для проверки соединения
+        await asyncio.wait_for(
+            websocket.send_text("ping"),
+            timeout=5.0
+        )
         return True
     except asyncio.TimeoutError:
         logger.warning("Таймаут WebSocket ping-запроса")
@@ -393,10 +396,18 @@ async def _broadcast(message: str, service_game, service_user, service_answer):
 # Добавим функцию периодической очистки неактивных соединений
 async def cleanup_inactive_connections():
     while True:
-        for user_id, player in list(active_players.items()):
+        for name, player in list(active_players.items()):
             if not await is_connection_active(player['ws']):
-                del active_players[user_id]
-                logger.info(f"🔴 Неактивный игрок удален. Осталось игроков: {len(active_players)}")
+                # Закрываем все соединения игрока
+                for connection_id in player['connections']:
+                    try:
+                        spectator_ws = active_spectators.get(connection_id)
+                        if spectator_ws:
+                            await spectator_ws.close()
+                    except:
+                        pass
+                del active_players[name]
+                logger.info(f"🔴 Игрок {name} отключился. Осталось игроков: {len(active_players)}")
         
         for spectator_id, spectator in list(active_spectators.items()):
             if not await is_connection_active(spectator):
@@ -412,18 +423,34 @@ async def websocket_player(websocket: WebSocket, service_game: GameService = Dep
     cleanup_task = asyncio.create_task(cleanup_inactive_connections())
     start_time = datetime.now()
     await websocket.accept()
-    user_id = id(websocket)
+    connection_id = id(websocket)
     
-    logger.info(f"🟢 Новое подключение игрока. ID подключения: {user_id}")
+    logger.info(f"🟢 Новое подключение игрока. ID подключения: {connection_id}")
 
-    status = await service_game.get_all_status()
-    sections = await service_game.get_sections()
-    current_section = sections[status.current_section_index]
     try:
         data = await websocket.receive_text()
         name = json.loads(data)["name"]
-        active_players[user_id] = {'ws': websocket, 'name': name}
+        
+        # Если игрок уже существует, добавляем новое соединение
+        if name in active_players:
+            # Закрываем старые соединения
+            old_ws = active_players[name]['ws']
+            try:
+                await old_ws.close()
+            except:
+                pass
+            
+        # Обновляем или создаем запись игрока
+        active_players[name] = {
+            'ws': websocket,
+            'connections': {connection_id}
+        }
+        
         logger.info(f"👤 Игрок {name} присоединился к игре. Всего игроков: {len(active_players)}")
+
+        status = await service_game.get_all_status()
+        sections = await service_game.get_sections()
+        current_section = sections[status.current_section_index]
 
         initial_message = {
             "text": "Игра завершена" if status.game_over else \
@@ -442,19 +469,22 @@ async def websocket_player(websocket: WebSocket, service_game: GameService = Dep
             data = await websocket.receive_text()
             msg = json.loads(data)
             
-            if msg['type'] == 'answer' and user_id not in answered_users:
+            if msg['type'] == 'answer' and name not in answered_users:
                 logger.info(f"Player {name} submitted answer for question: {status.current_question}")
                 response_time = datetime.now() - start_time
                 logger.info(f"Response time for player {name}: {response_time.total_seconds()} seconds")
                 
                 await service_answer.add_answer(question=status.current_question, username=name, answer=msg['answer'])
-                answered_users.add(user_id)
+                answered_users.add(name)
 
     except WebSocketDisconnect:
-        if user_id in active_players:
-            disconnected_player = active_players[user_id]['name']
-            del active_players[user_id]
-            logger.info(f"🔴 Игрок {disconnected_player} отключился. Осталось игроков: {len(active_players)}")
+        # Удаляем только конкретное соединение
+        for name, player in list(active_players.items()):
+            if connection_id in player['connections']:
+                player['connections'].remove(connection_id)
+                if not player['connections']:  # Если нет активных соединений
+                    del active_players[name]
+                    logger.info(f"🔴 Игрок {name} отключился. Осталось игроков: {len(active_players)}")
     finally:
         cleanup_task.cancel()
 
