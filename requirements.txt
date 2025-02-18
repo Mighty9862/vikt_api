@@ -10,6 +10,7 @@ bcrypt==4.2.1
 certifi==2025.1.31
 cffi==1.17.1
 click==8.1.8
+colorama==0.4.6
 cryptography==44.0.0
 dark_swag==0.0.1
 databases==0.9.0
@@ -45,6 +46,7 @@ Pygments==2.19.1
 PyJWT==2.10.1
 python-dotenv==1.0.1
 python-multipart==0.0.20
+pytz==2025.1
 PyYAML==6.0.2
 redis==5.2.1
 rich==13.9.4
@@ -62,4 +64,3 @@ watchfiles==1.0.4
 websockets==14.2
 Werkzeug==3.1.3
 yarl==1.18.3
-pytz==2025.1
