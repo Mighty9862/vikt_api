@@ -328,43 +328,30 @@ async def websocket_spectator(
         if spectator_id in active_spectators:
             del active_spectators[spectator_id]
 
-async def _broadcast_spectators(service_game, service_user, service_answer, status):
-    sections = await service_game.get_sections()
-    current_section = sections[status.current_section_index]
-
-    if status.spectator_display_mode == "rating":
-        players = await service_user.get_all_user()
-        message = {
-            "type": "rating",
-            "players": players,
-            "section": current_section
-        }
-    else:
-        message = {
-            "type": "question",
-            "content": status.current_question or "Ожидайте следующий вопрос...",
-            "section": current_section,
-            "answer": status.answer_for_current_question,
-            "question_image": status.current_question_image,
-            "answer_image": status.current_answer_image,
-            "timer": status.timer,
-            "show_answer": status.show_answer
-        }
-
-    broadcast_tasks = []
-    for spectator in active_spectators.values():
-        broadcast_tasks.append(
-            asyncio.create_task(spectator.send_text(json.dumps(message)))
-        )
-    
-    if broadcast_tasks:
-        await asyncio.gather(*broadcast_tasks, return_exceptions=True)
 
 async def _broadcast(message: str, service_game, service_user, service_answer):
+    start_time = datetime.now()
+    logger.info(f"""
+    🔄 Начало рассылки сообщения:
+    - Активных игроков: {len(active_players)}
+    - Активных зрителей: {len(active_spectators)}
+    - Время начала: {start_time.strftime('%H:%M:%S.%f')}
+    """)
+    
     try:
         status = await get_cached_game_status(service_game)
         sections = await service_game.get_sections()
         current_section = sections[status.current_section_index]
+
+        # Логируем текущее состояние игры
+        logger.info(f"""
+        📊 Текущее состояние игры:
+        - Раздел: {current_section}
+        - Вопрос: {status.current_question}
+        - Таймер: {'Включен' if status.timer else 'Выключен'}
+        - Показ ответа: {'Да' if status.show_answer else 'Нет'}
+        - Ответивших игроков: {len(answered_users)}
+        """)
 
         data_player = {
             "text": message,
@@ -379,10 +366,11 @@ async def _broadcast(message: str, service_game, service_user, service_answer):
         broadcast_tasks = []
         
         # Отправка игрокам
-        for player_data in active_players.values():
+        for player_name, player_data in active_players.items():
             broadcast_tasks.append(
                 asyncio.create_task(player_data['ws'].send_json(data_player))
             )
+            logger.debug(f"➡️ Добавлена задача отправки для игрока: {player_name}")
         
         # Отправка зрителям
         broadcast_tasks.append(
@@ -394,11 +382,72 @@ async def _broadcast(message: str, service_game, service_user, service_answer):
         if broadcast_tasks:
             await asyncio.gather(*broadcast_tasks, return_exceptions=True)
             
+        end_time = datetime.now()
+        execution_time = (end_time - start_time).total_seconds()
+        
+        logger.info(f"""
+        ✅ Рассылка завершена:
+        - Время окончания: {end_time.strftime('%H:%M:%S.%f')}
+        - Длительность: {execution_time:.3f} секунд
+        - Отправлено сообщений: {len(broadcast_tasks)}
+        """)
+            
     except Exception as e:
-        logger.error(f"Ошибка в _broadcast: {str(e)}", exc_info=True)
+        logger.error(f"""
+        ❌ Ошибка при рассылке:
+        - Время: {datetime.now().strftime('%H:%M:%S.%f')}
+        - Ошибка: {str(e)}
+        """, exc_info=True)
         raise
 
-# Запуск задачи мониторинга при старте приложения
-@router.on_event("startup")
-async def startup_event():
-    asyncio.create_task(start_monitoring_task())
+async def _broadcast_spectators(service_game, service_user, service_answer, status):
+    start_time = datetime.now()
+    logger.info(f"""
+    🔄 Начало рассылки зрителям:
+    - Количество зрителей: {len(active_spectators)}
+    - Время начала: {start_time.strftime('%H:%M:%S.%f')}
+    """)
+
+    sections = await service_game.get_sections()
+    current_section = sections[status.current_section_index]
+
+    if status.spectator_display_mode == "rating":
+        players = await service_user.get_all_user()
+        message = {
+            "type": "rating",
+            "players": players,
+            "section": current_section
+        }
+        logger.info(f"📊 Отправка рейтинга: {len(players)} игроков")
+    else:
+        message = {
+            "type": "question",
+            "content": status.current_question or "Ожидайте следующий вопрос...",
+            "section": current_section,
+            "answer": status.answer_for_current_question,
+            "question_image": status.current_question_image,
+            "answer_image": status.current_answer_image,
+            "timer": status.timer,
+            "show_answer": status.show_answer
+        }
+        logger.info("❓ Отправка вопроса зрителям")
+
+    broadcast_tasks = []
+    for spectator_id, spectator in active_spectators.items():
+        broadcast_tasks.append(
+            asyncio.create_task(spectator.send_text(json.dumps(message)))
+        )
+        logger.debug(f"➡️ Добавлена задача отправки для зрителя ID: {spectator_id}")
+    
+    if broadcast_tasks:
+        await asyncio.gather(*broadcast_tasks, return_exceptions=True)
+        
+    end_time = datetime.now()
+    execution_time = (end_time - start_time).total_seconds()
+    
+    logger.info(f"""
+    ✅ Рассылка зрителям завершена:
+    - Время окончания: {end_time.strftime('%H:%M:%S.%f')}
+    - Длительность: {execution_time:.3f} секунд
+    - Отправлено сообщений: {len(broadcast_tasks)}
+    """)
