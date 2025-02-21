@@ -12,7 +12,7 @@ from schemas.questions import QuestionSchema, QuestionReadSchema
 from dependencies import get_game_service, get_user_service, get_question_service, get_answer_service, get_db
 from services.users.UserService import UserService
 from services.games.GameService import GameService
-from services.answers.AnswerService import AnswerService 
+from services.answers.AnswerService import AnswerService
 from services.questions.QuestionService import QuestionService
 
 from config.logger import setup_logging
@@ -41,11 +41,11 @@ CACHE_TIMEOUT = 1  # секунды
 async def get_cached_game_status(service_game: GameService):
     global _game_status_cache, _game_status_cache_time
     current_time = time.time()
-    
+
     if _game_status_cache is None or (current_time - _game_status_cache_time) > CACHE_TIMEOUT:
         _game_status_cache = await service_game.get_all_status()
         _game_status_cache_time = current_time
-    
+
     return _game_status_cache
 
 async def invalidate_game_status_cache():
@@ -100,17 +100,26 @@ async def start_game(
     service_answer: AnswerService = Depends(get_answer_service),
     service_question: QuestionService = Depends(get_question_service)
 ):
-    global answered_users
-    answered_users = set()
-    
-    sections = await service_game.get_sections()
-    for section in sections:
-        if not await service_question.has_questions(section):
-            await service_question.load_questions_to_redis(section)
-    
-    await service_game.start_game(0, True, False)
-    await _broadcast("Игра начата! Ожидайте первый вопрос.", service_game, service_user, service_answer)
-    return {"message": "Игра начата"}
+    try:
+        global answered_users
+        answered_users = set()
+
+        sections = await service_game.get_sections()
+        if not sections:
+            raise HTTPException(status_code=400, detail="Нет доступных разделов")
+
+        for section in sections:
+            if not await service_question.has_questions(section):
+                await service_question.load_questions_to_redis(section)
+
+        await service_game.start_game(0, True, False)
+        await _broadcast("Игра начата! Ожидайте первый вопрос.", service_game, service_user, service_answer)
+        return {"message": "Игра начата"}
+
+    except Exception as e:
+        logger.error(f"Ошибка при запуске игры: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Ошибка при запуске игры: {str(e)}")
+
 
 @router.post("/admin/stop")
 async def stop_game(
@@ -202,14 +211,14 @@ async def next_question(
 ):
     logger.info("Starting next question procedure")
     start_time = datetime.now()
-    
+
     global answered_users
     answered_users = set()  # Очищаем список ответивших
 
     status = await get_cached_game_status(service_game)
     if not status.game_started or status.game_over:
         return {"message": "Игра не активна"}
-    
+
     sections = await service_game.get_sections()
     current_section_index = status.current_section_index
 
@@ -224,7 +233,7 @@ async def next_question(
 
     current_section = sections[current_section_index]
     question = await service_question.get_random_question(current_section)
-    
+
     if question:
         game_update = {
             "current_question": question.question,
@@ -236,7 +245,7 @@ async def next_question(
         }
         await service_game.update_current_question(**game_update)
         await invalidate_game_status_cache()
-        
+
         await _broadcast(question.question, service_game, service_user, service_answer)
         execution_time = datetime.now() - start_time
         logger.info(f"Question changed successfully in {execution_time.total_seconds()} seconds")
@@ -247,7 +256,7 @@ async def next_question(
             await service_game.update_game_over(True)
             await _broadcast("Игра завершена!", service_game, service_user, service_answer)
             return {"message": "Все разделы пройдены"}
-            
+
         await service_game.update_section_index(current_section_index)
         new_section = sections[current_section_index]
         if not await service_question.has_questions(new_section):
@@ -263,7 +272,7 @@ async def websocket_player(
     await websocket.accept()
     connection_id = id(websocket)
     player_name = None
-    
+
     logger.info(f"🟢 Новое подключение игрока. ID подключения: {connection_id}")
 
     try:
@@ -299,7 +308,7 @@ async def websocket_player(
         while True:
             data = await websocket.receive_text()
             msg = json.loads(data)
-            
+
             if msg['type'] == 'answer' and player_name not in answered_users:
                 logger.info(f"Получен ответ от игрока {player_name}")
                 await service_answer.add_answer(
@@ -327,18 +336,18 @@ async def websocket_spectator(
 ):
     await websocket.accept()
     spectator_id = id(websocket)
-    
+
     try:
         # Убираем ожидание начального сообщения
         active_spectators[spectator_id] = websocket
         spectator_last_activity[spectator_id] = datetime.now()
-        
+
         logger.info(f"🟢 Новое подключение зрителя: ID: {spectator_id}, Всего зрителей: {len(active_spectators)}")
-        
+
         # Сразу отправляем текущее состояние
         status = await get_cached_game_status(service_game)
         await _broadcast_spectators(service_game, service_user, service_answer, status)
-        
+
         while True:
             try:
                 # Ждем сообщения от клиента для поддержания соединения
@@ -350,7 +359,7 @@ async def websocket_spectator(
                     logger.warning(f"🔴 Зритель {spectator_id} неактивен, закрываем соединение")
                     raise WebSocketDisconnect()
                 continue
-            
+
     except WebSocketDisconnect:
         logger.info(f"🔴 Зритель отключился. ID: {spectator_id}")
     except Exception as e:
@@ -369,7 +378,7 @@ async def _broadcast(message: str, service_game, service_user, service_answer):
     - Активных зрителей: {len(active_spectators)}
     - Время начала: {start_time.strftime('%H:%M:%S.%f')}
     """)
-    
+
     try:
         status = await get_cached_game_status(service_game)
         sections = await service_game.get_sections()
@@ -386,34 +395,34 @@ async def _broadcast(message: str, service_game, service_user, service_answer):
         }
 
         broadcast_tasks = []
-        
+
         # Отправка игрокам
         for player_name, player_data in active_players.items():
             broadcast_tasks.append(
                 asyncio.create_task(player_data['ws'].send_json(data_player))
             )
             logger.debug(f"➡️ Добавлена задача отправки для игрока: {player_name}")
-        
+
         # Отправка зрителям
         broadcast_tasks.append(
             asyncio.create_task(
                 _broadcast_spectators(service_game, service_user, service_answer, status)
             )
         )
-        
+
         if broadcast_tasks:
             await asyncio.gather(*broadcast_tasks, return_exceptions=True)
-            
+
         end_time = datetime.now()
         execution_time = (end_time - start_time).total_seconds()
-        
+
         logger.info(f"""
         ✅ Рассылка завершена:
         - Время окончания: {end_time.strftime('%H:%M:%S.%f')}
         - Длительность: {execution_time:.3f} секунд
         - Отправлено сообщений: {len(broadcast_tasks)}
         """)
-            
+
     except Exception as e:
         logger.error(f"""
         ❌ Ошибка при рассылке:
@@ -425,7 +434,7 @@ async def _broadcast(message: str, service_game, service_user, service_answer):
 async def _broadcast_spectators(service_game, service_user, service_answer, status=None):
     if status is None:
         status = await get_cached_game_status(service_game)
-        
+
     start_time = datetime.now()
     logger.info(f"""
     🔄 Начало рассылки зрителям:
@@ -472,13 +481,13 @@ async def _broadcast_spectators(service_game, service_user, service_answer, stat
                 del active_spectators[spectator_id]
             if spectator_id in spectator_last_activity:
                 del spectator_last_activity[spectator_id]
-    
+
     if broadcast_tasks:
         await asyncio.gather(*broadcast_tasks, return_exceptions=True)
-        
+
     end_time = datetime.now()
     execution_time = (end_time - start_time).total_seconds()
-    
+
     logger.info(f"""
     ✅ Рассылка зрителям завершена:
     - Время окончания: {end_time.strftime('%H:%M:%S.%f')}
