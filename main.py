@@ -1,14 +1,9 @@
-import os
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-#from starlette.middleware.cors import CORSMiddleware as CORSMiddleware
 import uvicorn
 from presentation import router as ApiV2Router
-from config.monitoring import setup_monitoring, start_monitoring
-from starlette.middleware.base import BaseHTTPMiddleware
-import asyncio
-
+import os
 
 app = FastAPI(
     title="Vikt API",
@@ -53,20 +48,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
-
-class MonitoringMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request, call_next):
-        # Запускаем мониторинг только один раз при первом запросе
-        if not hasattr(self, '_monitoring_started'):
-            setup_monitoring()
-            asyncio.create_task(start_monitoring())
-            self._monitoring_started = True
-        
-        # Продолжаем обработку запроса
-        response = await call_next(request)
-        return response
-
-app.add_middleware(MonitoringMiddleware)
 
 @app.get("/")
 def get_home():

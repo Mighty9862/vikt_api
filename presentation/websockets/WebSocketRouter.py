@@ -15,12 +15,6 @@ from services.games.GameService import GameService
 from services.answers.AnswerService import AnswerService
 from services.questions.QuestionService import QuestionService
 
-from config.logger import setup_logging
-from config.monitoring import start_monitoring_task
-
-# Настройка единого логгера
-logger = setup_logging()
-
 router = APIRouter(prefix="/websocket", tags=["WebSocket"])
 
 # Изменяем структуру хранения данных
@@ -58,7 +52,6 @@ async def is_connection_active(websocket: WebSocket) -> bool:
         await websocket.send_text("")
         return True
     except Exception as e:
-        logger.error(f"Ошибка проверки соединения: {str(e)}")
         return False
 
 # Admin endpoints
@@ -117,7 +110,6 @@ async def start_game(
         return {"message": "Игра начата"}
 
     except Exception as e:
-        logger.error(f"Ошибка при запуске игры: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Ошибка при запуске игры: {str(e)}")
 
 
@@ -209,9 +201,6 @@ async def next_question(
     service_user: UserService = Depends(get_user_service),
     service_answer: AnswerService = Depends(get_answer_service)
 ):
-    logger.info("Starting next question procedure")
-    start_time = datetime.now()
-
     global answered_users
     answered_users = set()  # Очищаем список ответивших
 
@@ -247,8 +236,6 @@ async def next_question(
         await invalidate_game_status_cache()
 
         await _broadcast(question.question, service_game, service_user, service_answer)
-        execution_time = datetime.now() - start_time
-        logger.info(f"Question changed successfully in {execution_time.total_seconds()} seconds")
         return {"message": "OK"}
     else:
         current_section_index += 1
@@ -273,8 +260,6 @@ async def websocket_player(
     connection_id = id(websocket)
     player_name = None
 
-    logger.info(f"🟢 Новое подключение игрока. ID подключения: {connection_id}")
-
     try:
         data = await websocket.receive_text()
         msg = json.loads(data)
@@ -288,14 +273,11 @@ async def websocket_player(
                     await old_ws.close()
                 except:
                     pass
-                logger.info(f"🔄 Игрок {player_name} переподключился")
             else:
                 await websocket.close()
-                logger.warning(f"❌ Попытка дублирования игрока {player_name}")
                 return
 
         active_players[player_name] = {'ws': websocket, 'connection_id': connection_id}
-        logger.info(f"👤 Игрок {player_name} присоединился к игре. Всего игроков: {len(active_players)}")
 
         status = await service_game.get_all_status()
         initial_message = {
@@ -310,7 +292,6 @@ async def websocket_player(
             msg = json.loads(data)
 
             if msg['type'] == 'answer' and player_name not in answered_users:
-                logger.info(f"Получен ответ от игрока {player_name}")
                 await service_answer.add_answer(
                     question=status.current_question,
                     username=player_name,
@@ -321,9 +302,7 @@ async def websocket_player(
     except WebSocketDisconnect:
         if player_name and player_name in active_players:
             del active_players[player_name]
-            logger.info(f"🔴 Игрок {player_name} отключился. Осталось игроков: {len(active_players)}")
     except Exception as e:
-        logger.error(f"Ошибка в websocket_player: {str(e)}")
         if player_name and player_name in active_players:
             del active_players[player_name]
 
@@ -338,32 +317,23 @@ async def websocket_spectator(
     spectator_id = id(websocket)
 
     try:
-        # Убираем ожидание начального сообщения
         active_spectators[spectator_id] = websocket
         spectator_last_activity[spectator_id] = datetime.now()
 
-        logger.info(f"🟢 Новое подключение зрителя: ID: {spectator_id}, Всего зрителей: {len(active_spectators)}")
-
-        # Сразу отправляем текущее состояние
         status = await get_cached_game_status(service_game)
         await _broadcast_spectators(service_game, service_user, service_answer, status)
 
         while True:
             try:
-                # Ждем сообщения от клиента для поддержания соединения
                 await asyncio.wait_for(websocket.receive_text(), timeout=30)
                 spectator_last_activity[spectator_id] = datetime.now()
             except asyncio.TimeoutError:
-                # Проверяем соединение
                 if not await is_connection_active(websocket):
-                    logger.warning(f"🔴 Зритель {spectator_id} неактивен, закрываем соединение")
                     raise WebSocketDisconnect()
                 continue
 
     except WebSocketDisconnect:
-        logger.info(f"🔴 Зритель отключился. ID: {spectator_id}")
-    except Exception as e:
-        logger.error(f"Ошибка в websocket_spectator: {str(e)}")
+        pass
     finally:
         if spectator_id in active_spectators:
             del active_spectators[spectator_id]
@@ -371,14 +341,6 @@ async def websocket_spectator(
             del spectator_last_activity[spectator_id]
 
 async def _broadcast(message: str, service_game, service_user, service_answer):
-    start_time = datetime.now()
-    logger.info(f"""
-    🔄 Начало рассылки сообщения:
-    - Активных игроков: {len(active_players)}
-    - Активных зрителей: {len(active_spectators)}
-    - Время начала: {start_time.strftime('%H:%M:%S.%f')}
-    """)
-
     try:
         status = await get_cached_game_status(service_game)
         sections = await service_game.get_sections()
@@ -396,14 +358,11 @@ async def _broadcast(message: str, service_game, service_user, service_answer):
 
         broadcast_tasks = []
 
-        # Отправка игрокам
         for player_name, player_data in active_players.items():
             broadcast_tasks.append(
                 asyncio.create_task(player_data['ws'].send_json(data_player))
             )
-            logger.debug(f"➡️ Добавлена задача отправки для игрока: {player_name}")
 
-        # Отправка зрителям
         broadcast_tasks.append(
             asyncio.create_task(
                 _broadcast_spectators(service_game, service_user, service_answer, status)
@@ -413,34 +372,12 @@ async def _broadcast(message: str, service_game, service_user, service_answer):
         if broadcast_tasks:
             await asyncio.gather(*broadcast_tasks, return_exceptions=True)
 
-        end_time = datetime.now()
-        execution_time = (end_time - start_time).total_seconds()
-
-        logger.info(f"""
-        ✅ Рассылка завершена:
-        - Время окончания: {end_time.strftime('%H:%M:%S.%f')}
-        - Длительность: {execution_time:.3f} секунд
-        - Отправлено сообщений: {len(broadcast_tasks)}
-        """)
-
     except Exception as e:
-        logger.error(f"""
-        ❌ Ошибка при рассылке:
-        - Время: {datetime.now().strftime('%H:%M:%S.%f')}
-        - Ошибка: {str(e)}
-        """, exc_info=True)
         raise
 
 async def _broadcast_spectators(service_game, service_user, service_answer, status=None):
     if status is None:
         status = await get_cached_game_status(service_game)
-
-    start_time = datetime.now()
-    logger.info(f"""
-    🔄 Начало рассылки зрителям:
-    - Количество зрителей: {len(active_spectators)}
-    - Время начала: {start_time.strftime('%H:%M:%S.%f')}
-    """)
 
     sections = await service_game.get_sections()
     current_section = sections[status.current_section_index]
@@ -452,7 +389,6 @@ async def _broadcast_spectators(service_game, service_user, service_answer, stat
             "players": players,
             "section": current_section
         }
-        logger.info(f"📊 Отправка рейтинга: {len(players)} игроков")
     else:
         message = {
             "type": "question",
@@ -464,19 +400,14 @@ async def _broadcast_spectators(service_game, service_user, service_answer, stat
             "timer": status.timer,
             "show_answer": status.show_answer
         }
-        logger.info("❓ Отправка вопроса зрителям")
 
     broadcast_tasks = []
     for spectator_id, spectator in list(active_spectators.items()):
         try:
-            # Убираем проверку is_connection_active, так как она может вызывать ложные срабатывания
             broadcast_tasks.append(
                 asyncio.create_task(spectator.send_text(json.dumps(message)))
             )
-            logger.debug(f"➡️ Добавлена задача отправки для зрителя ID: {spectator_id}")
         except Exception as e:
-            logger.error(f"Ошибка при отправке зрителю {spectator_id}: {str(e)}")
-            # Удаляем проблемное соединение только при реальной ошибке отправки
             if spectator_id in active_spectators:
                 del active_spectators[spectator_id]
             if spectator_id in spectator_last_activity:
@@ -484,13 +415,3 @@ async def _broadcast_spectators(service_game, service_user, service_answer, stat
 
     if broadcast_tasks:
         await asyncio.gather(*broadcast_tasks, return_exceptions=True)
-
-    end_time = datetime.now()
-    execution_time = (end_time - start_time).total_seconds()
-
-    logger.info(f"""
-    ✅ Рассылка зрителям завершена:
-    - Время окончания: {end_time.strftime('%H:%M:%S.%f')}
-    - Длительность: {execution_time:.3f} секунд
-    - Отправлено сообщений: {len(broadcast_tasks)}
-    """)
