@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisco
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from schemas.questions import QuestionSchema, QuestionReadSchema
-from dependencies import get_game_service, get_user_service, get_question_service, get_answer_service, get_db
+from dependencies import get_game_service, get_user_service, get_question_service, get_answer_service, get_db, get_redis
 from services.users.UserService import UserService
 from services.games.GameService import GameService
 from services.answers.AnswerService import AnswerService
@@ -263,6 +263,64 @@ async def next_question(
             await service_question.load_questions_to_redis(new_section)
         return await next_question(service_question, service_game, service_user, service_answer)
 
+@router.post("/admin/next-section")
+async def next_section(
+    service_game: GameService = Depends(get_game_service),
+    service_user: UserService = Depends(get_user_service),
+    service_answer: AnswerService = Depends(get_answer_service),
+    service_question: QuestionService = Depends(get_question_service)
+):
+    try:
+        status = await get_cached_game_status(service_game)
+        sections = await service_game.get_sections()
+        current_section_index = status.current_section_index
+        
+        # Очищаем вопросы всех предыдущих секций и текущей секции из Redis
+        redis = await anext(get_redis())
+        for i in range(current_section_index + 1):
+            section = sections[i]
+            # Удаляем вопросы секции
+            await redis.delete(f"questions:{section}")
+            # Удаляем все ключи, связанные с этой секцией
+            pattern = f"*{section}*"
+            keys = await redis.keys(pattern)
+            if keys:
+                await redis.delete(*keys)
+        
+        # Переходим к следующей секции
+        next_section_index = current_section_index + 1
+        
+        if next_section_index >= len(sections):
+            # Если секции закончились
+            await service_game.update_game_over(True)
+            await _broadcast("Игра завершена! Все разделы пройдены.", service_game, service_user, service_answer)
+            return {"message": "Все разделы пройдены"}
+        
+        # Обновляем индекс секции
+        await service_game.update_section_index(next_section_index)
+        new_section = sections[next_section_index]
+        
+        # Загружаем вопросы для новой секции
+        if not await service_question.has_questions(new_section):
+            await service_question.load_questions_to_redis(new_section)
+        
+        # Очищаем текущий вопрос
+        await service_game.update_current_question(
+            current_question=None,
+            answer_for_current_question=None,
+            current_question_image=None,
+            current_answer_image=None,
+            timer_status=False,
+            show_answer=False
+        )
+        
+        await _broadcast(f"Переход к разделу: {new_section}", service_game, service_user, service_answer)
+        return {"message": f"Переход к разделу: {new_section}"}
+        
+    except Exception as e:
+        logger.error(f"Ошибка при переключении секции: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.websocket("/ws/player")
 async def websocket_player(
     websocket: WebSocket,
@@ -494,3 +552,22 @@ async def _broadcast_spectators(service_game, service_user, service_answer, stat
     - Длительность: {execution_time:.3f} секунд
     - Отправлено сообщений: {len(broadcast_tasks)}
     """)
+
+@router.post("/admin/clear-redis")
+async def clear_redis(
+    service_game: GameService = Depends(get_game_service),
+    service_user: UserService = Depends(get_user_service),
+    service_answer: AnswerService = Depends(get_answer_service)
+):
+    redis = await anext(get_redis())
+    
+    # Очищаем весь Redis
+    await redis.flushall()
+    
+    # Останавливаем игру
+    await service_game.stop_game()
+    
+    # Оповещаем всех подключенных клиентов
+    await _broadcast("Игра сброшена", service_game, service_user, service_answer)
+    
+    return {"message": "Redis очищен, игра сброшена"}

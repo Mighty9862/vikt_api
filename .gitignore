@@ -1,4 +1,32 @@
-**/__pycache__/
-.venv
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+ENV/
+*.so
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# OS specific
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Dependencies
+dist/
+build/
+*.egg-info/
+
 
 game_server.log
