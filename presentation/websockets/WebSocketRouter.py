@@ -93,6 +93,19 @@ async def get_all_sections(service: GameService = Depends(get_game_service)):
     sections = await service.get_sections()
     return {"sections": sections}
 
+@router.post("/admin/update_sections")
+async def update_sections(
+    sections: List[str],
+    service: GameService = Depends(get_game_service)
+):
+    try:
+        # Преобразуем список секций в строку, разделенную точками
+        sections_string = ".".join(sections)
+        await service.update_sections(sections_string)
+        return {"message": "Разделы успешно обновлены", "sections": sections}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при обновлении разделов: {str(e)}")
+
 @router.post("/admin/start")
 async def start_game(
     service_game: GameService = Depends(get_game_service),

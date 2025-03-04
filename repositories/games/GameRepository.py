@@ -157,6 +157,22 @@ class GameRepository(BaseRepository[GameStatus]):
         await self.session.commit()
         await self.session.refresh(status)
         await self.session.close()
+
+    async def update_sections(self, sections: str):
+        query = select(self.model)
+        stmt = await self.session.execute(query)
+        status = stmt.scalars().first()
+
+        if not status:
+            status = self.model()
+            self.session.add(status)
+
+        status.sections = sections
+        
+        await self.session.commit()
+        await self.session.refresh(status)
+        await self.session.close()
+        return status
         
     
     
