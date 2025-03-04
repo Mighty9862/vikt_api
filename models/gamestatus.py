@@ -6,7 +6,8 @@ from datetime import datetime
 class GameStatus(Base):
     __tablename__ = "gamestatus"
     
-    sections: Mapped[str] = mapped_column(Text, nullable=True, unique=False)
+    sections: Mapped[str] = mapped_column(Text, nullable=True, unique=False, 
+                                          default="Начальный этап Великой Отечественной войны.Коренной перелом в ходе Великой Отечественной войны.Завершающий этап Великой Отечественной войны")
     current_section_index: Mapped[int] = mapped_column(Integer, nullable=True, default=0)
 
     current_question: Mapped[str] = mapped_column(Text, nullable=True)
