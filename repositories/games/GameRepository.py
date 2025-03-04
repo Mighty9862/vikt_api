@@ -69,7 +69,7 @@ class GameRepository(BaseRepository[GameStatus]):
             status = self.model()
             self.session.add(status)
         else:
-            status.sections = "Начальный этап Великой Отечественной Войны.Коренной перелом в ходе Великой Отечественной войны.Завершающий этап Великой Отечественной войны"
+            status.sections = "Начальный этап Великой Отечественной войны.Коренной перелом в ходе Великой Отечественной войны.Завершающий этап Великой Отечественной войны"
             status.current_section_index = 0
             status.current_question = None
             status.answer_for_current_question = None
