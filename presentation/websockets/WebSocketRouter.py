@@ -38,11 +38,11 @@ _game_status_cache = None
 _game_status_cache_time = 0
 CACHE_TIMEOUT = 1  # секунды
 
-async def get_cached_game_status(service_game: GameService):
+async def get_cached_game_status(service_game: GameService, force_update: bool = False):
     global _game_status_cache, _game_status_cache_time
     current_time = time.time()
 
-    if _game_status_cache is None or (current_time - _game_status_cache_time) > CACHE_TIMEOUT:
+    if force_update or _game_status_cache is None or (current_time - _game_status_cache_time) > CACHE_TIMEOUT:
         _game_status_cache = await service_game.get_all_status()
         _game_status_cache_time = current_time
 
@@ -141,8 +141,20 @@ async def stop_game(
     service_answer: AnswerService = Depends(get_answer_service)
 ):
     await service_game.stop_game()
-    await _broadcast("clear_storage", service_game, service_user, service_answer)
-    await _broadcast("Игра завершена администратором.", service_game, service_user, service_answer)
+    await broadcast_message(
+        message_type="question",
+        content="clear_storage",
+        service_game=service_game,
+        service_user=service_user,
+        service_answer=service_answer
+    )
+    await broadcast_message(
+        message_type="question",
+        content="Игра завершена администратором.",
+        service_game=service_game,
+        service_user=service_user,
+        service_answer=service_answer
+    )
     return {"message": "Игра остановлена"}
 
 @router.post("/admin/show_rating")
@@ -151,12 +163,15 @@ async def show_rating(
     service_user: UserService = Depends(get_user_service),
     service_answer: AnswerService = Depends(get_answer_service)
 ):
-    # Сначала переключаем режим отображения
     await service_game.switch_display_mode("rating")
-    # Сбрасываем кэш
-    await invalidate_game_status_cache()
-    # Отправляем обновление всем зрителям
-    await _broadcast_spectators(service_game, service_user, service_answer)
+    await broadcast_message(
+        message_type="rating",
+        content=None,  # контент будет получен внутри функции
+        service_game=service_game,
+        service_user=service_user,
+        service_answer=service_answer,
+        force_update=True
+    )
     return {"message": "Рейтинг показан"}
 
 @router.post("/admin/show_question")
@@ -165,18 +180,17 @@ async def show_question(
     service_user: UserService = Depends(get_user_service),
     service_answer: AnswerService = Depends(get_answer_service)
 ):
-    # Сначала переключаем режим отображения
     await service_game.switch_display_mode("question")
-    # Получаем текущий статус
-    status = await service_game.get_all_status()
-    # Сбрасываем кэш
-    await invalidate_game_status_cache()
-    # Отправляем обновление всем зрителям
-    await _broadcast(
-        status.current_question or "Ожидайте вопрос",
-        service_game,
-        service_user,
-        service_answer
+    await service_game.update_answer_status(False)
+    
+    status = await get_cached_game_status(service_game, force_update=True)
+    await broadcast_message(
+        message_type="question",
+        content=status.current_question or "Ожидайте вопрос",
+        service_game=service_game,
+        service_user=service_user,
+        service_answer=service_answer,
+        force_update=True
     )
     return {"message": "Вопрос показан"}
 
@@ -186,9 +200,16 @@ async def update_answer_status(
     service_user: UserService = Depends(get_user_service),
     service_answer: AnswerService = Depends(get_answer_service)
 ):
-    status = await service_game.get_all_status()
     await service_game.update_answer_status(True)
-    await _broadcast(status.current_question or "Ожидайте вопрос", service_game, service_user, service_answer)
+    # Получаем обновленный статус через кэш
+    status = await get_cached_game_status(service_game, force_update=True)
+    await broadcast_message(
+        message_type="question",
+        content=status.current_question or "Ожидайте вопрос",
+        service_game=service_game,
+        service_user=service_user,
+        service_answer=service_answer
+    )
     return {"message": "Правильный ответ показан"}
 
 @router.post("/admin/start_timer")
@@ -197,9 +218,16 @@ async def update_timer(
     service_user: UserService = Depends(get_user_service),
     service_answer: AnswerService = Depends(get_answer_service)
 ):
-    status = await service_game.get_all_status()
     await service_game.update_timer_status(True)
-    await _broadcast(status.current_question or "Ожидайте вопрос", service_game, service_user, service_answer)
+    # Получаем обновленный статус через кэш
+    status = await get_cached_game_status(service_game, force_update=True)
+    await broadcast_message(
+        message_type="question",
+        content=status.current_question or "Ожидайте вопрос",
+        service_game=service_game,
+        service_user=service_user,
+        service_answer=service_answer
+    )
     return {"message": "Таймер запущен"}
 
 @router.get("/admin/answers")
@@ -241,7 +269,13 @@ async def next_question(
     if current_section_index >= len(sections):
         await service_game.update_game_over(True)
         await invalidate_game_status_cache()
-        await _broadcast("Игра завершена!", service_game, service_user, service_answer)
+        await broadcast_message(
+            message_type="question",
+            content="Игра завершена!",
+            service_game=service_game,
+            service_user=service_user,
+            service_answer=service_answer
+        )
         return {"message": "Все разделы пройдены"}
 
     current_section = sections[current_section_index]
@@ -259,7 +293,13 @@ async def next_question(
         await service_game.update_current_question(**game_update)
         await invalidate_game_status_cache()
 
-        await _broadcast(question.question, service_game, service_user, service_answer)
+        await broadcast_message(
+            message_type="question",
+            content=question.question,
+            service_game=service_game,
+            service_user=service_user,
+            service_answer=service_answer
+        )
         execution_time = datetime.now() - start_time
         logger.info(f"Question changed successfully in {execution_time.total_seconds()} seconds")
         return {"message": "OK"}
@@ -267,7 +307,13 @@ async def next_question(
         current_section_index += 1
         if current_section_index >= len(sections):
             await service_game.update_game_over(True)
-            await _broadcast("Игра завершена!", service_game, service_user, service_answer)
+            await broadcast_message(
+                message_type="question",
+                content="Игра завершена!",
+                service_game=service_game,
+                service_user=service_user,
+                service_answer=service_answer
+            )
             return {"message": "Все разделы пройдены"}
 
         await service_game.update_section_index(current_section_index)
@@ -306,7 +352,13 @@ async def next_section(
         if next_section_index >= len(sections):
             # Если секции закончились
             await service_game.update_game_over(True)
-            await _broadcast("Игра завершена! Все разделы пройдены.", service_game, service_user, service_answer)
+            await broadcast_message(
+                message_type="question",
+                content="Игра завершена! Все разделы пройдены.",
+                service_game=service_game,
+                service_user=service_user,
+                service_answer=service_answer
+            )
             return {"message": "Все разделы пройдены"}
         
         # Обновляем индекс секции
@@ -327,13 +379,50 @@ async def next_section(
             show_answer=False
         )
         
-        await _broadcast(f"Переход к разделу: {new_section}", service_game, service_user, service_answer)
+        await broadcast_message(
+            message_type="question",
+            content=f"Переход к разделу: {new_section}",
+            service_game=service_game,
+            service_user=service_user,
+            service_answer=service_answer
+        )
         return {"message": f"Переход к разделу: {new_section}"}
         
     except Exception as e:
         logger.error(f"Ошибка при переключении секции: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# Добавляем новую функцию для обработки отключений
+async def handle_disconnect(connection_type: str, identifier: str | int, websocket: WebSocket):
+    """
+    Универсальная функция для обработки отключений websocket соединений
+    
+    Args:
+        connection_type: тип соединения ("player" или "spectator")
+        identifier: идентификатор соединения (имя игрока или ID зрителя)
+        websocket: объект WebSocket
+    """
+    try:
+        if connection_type == "player":
+            if identifier in active_players:
+                del active_players[identifier]
+                logger.info(f"🔴 Игрок {identifier} отключился. Осталось игроков: {len(active_players)}")
+        elif connection_type == "spectator":
+            if identifier in active_spectators:
+                del active_spectators[identifier]
+            if identifier in spectator_last_activity:
+                del spectator_last_activity[identifier]
+            logger.info(f"🔴 Зритель {identifier} отключился. Осталось зрителей: {len(active_spectators)}")
+        
+        try:
+            await websocket.close()
+        except Exception:
+            pass  # Игнорируем ошибки при закрытии сокета
+            
+    except Exception as e:
+        logger.error(f"Ошибка при обработке отключения {connection_type} {identifier}: {str(e)}")
+
+# Обновляем обработчик игрока
 @router.websocket("/ws/player")
 async def websocket_player(
     websocket: WebSocket,
@@ -354,11 +443,8 @@ async def websocket_player(
 
         if player_name in active_players:
             if reconnect:
-                try:
-                    old_ws = active_players[player_name]['ws']
-                    await old_ws.close()
-                except:
-                    pass
+                # Используем новую функцию для закрытия старого соединения
+                await handle_disconnect("player", player_name, active_players[player_name]['ws'])
                 logger.info(f"🔄 Игрок {player_name} переподключился")
             else:
                 await websocket.close()
@@ -368,9 +454,11 @@ async def websocket_player(
         active_players[player_name] = {'ws': websocket, 'connection_id': connection_id}
         logger.info(f"👤 Игрок {player_name} присоединился к игре. Всего игроков: {len(active_players)}")
 
-        status = await service_game.get_all_status()
+        # Используем кэшированный статус вместо прямого запроса
+        status = await get_cached_game_status(service_game)
         initial_message = {
-            "text": status.current_question or "Ожидайте вопрос",
+            "type": "question",
+            "content": status.current_question or "Ожидайте вопрос",
             "timer": status.timer,
             "show_answer": status.show_answer
         }
@@ -380,8 +468,10 @@ async def websocket_player(
             data = await websocket.receive_text()
             msg = json.loads(data)
 
-            if msg['type'] == 'answer' and player_name not in answered_users:
+            if player_name not in answered_users:
                 logger.info(f"Получен ответ от игрока {player_name}")
+                # Получаем свежий статус для ответа
+                status = await get_cached_game_status(service_game, force_update=True)
                 await service_answer.add_answer(
                     question=status.current_question,
                     username=player_name,
@@ -390,14 +480,14 @@ async def websocket_player(
                 answered_users.add(player_name)
 
     except WebSocketDisconnect:
-        if player_name and player_name in active_players:
-            del active_players[player_name]
-            logger.info(f"🔴 Игрок {player_name} отключился. Осталось игроков: {len(active_players)}")
+        if player_name:
+            await handle_disconnect("player", player_name, websocket)
     except Exception as e:
         logger.error(f"Ошибка в websocket_player: {str(e)}")
-        if player_name and player_name in active_players:
-            del active_players[player_name]
+        if player_name:
+            await handle_disconnect("player", player_name, websocket)
 
+# Обновляем обработчик зрителя
 @router.websocket("/ws/spectator")
 async def websocket_spectator(
     websocket: WebSocket,
@@ -409,7 +499,6 @@ async def websocket_spectator(
     spectator_id = id(websocket)
 
     try:
-        # Убираем ожидание начального сообщения
         active_spectators[spectator_id] = websocket
         spectator_last_activity[spectator_id] = datetime.now()
 
@@ -432,14 +521,10 @@ async def websocket_spectator(
                 continue
 
     except WebSocketDisconnect:
-        logger.info(f"🔴 Зритель отключился. ID: {spectator_id}")
+        await handle_disconnect("spectator", spectator_id, websocket)
     except Exception as e:
         logger.error(f"Ошибка в websocket_spectator: {str(e)}")
-    finally:
-        if spectator_id in active_spectators:
-            del active_spectators[spectator_id]
-        if spectator_id in spectator_last_activity:
-            del spectator_last_activity[spectator_id]
+        await handle_disconnect("spectator", spectator_id, websocket)
 
 async def _broadcast(message: str, service_game, service_user, service_answer):
     start_time = datetime.now()
@@ -455,8 +540,10 @@ async def _broadcast(message: str, service_game, service_user, service_answer):
         sections = await service_game.get_sections()
         current_section = sections[status.current_section_index]
 
-        data_player = {
-            "text": message,
+        # Унифицированный формат сообщений для всех клиентов
+        common_message = {
+            "type": "question",  # Добавляем тип для всех сообщений
+            "content": message,   # Используем content вместо text
             "section": current_section,
             "answer": status.answer_for_current_question,
             "question_image": status.current_question_image,
@@ -467,17 +554,17 @@ async def _broadcast(message: str, service_game, service_user, service_answer):
 
         broadcast_tasks = []
 
-        # Отправка игрокам
+        # Отправка игрокам (теперь тот же формат)
         for player_name, player_data in active_players.items():
             broadcast_tasks.append(
-                asyncio.create_task(player_data['ws'].send_json(data_player))
+                asyncio.create_task(player_data['ws'].send_json(common_message))
             )
             logger.debug(f"➡️ Добавлена задача отправки для игрока: {player_name}")
 
-        # Отправка зрителям
+        # Отправка зрителям (используем тот же объект сообщения)
         broadcast_tasks.append(
             asyncio.create_task(
-                _broadcast_spectators(service_game, service_user, service_answer, status)
+                _broadcast_spectators(service_game, service_user, service_answer, status, common_message)
             )
         )
 
@@ -502,16 +589,9 @@ async def _broadcast(message: str, service_game, service_user, service_answer):
         """, exc_info=True)
         raise
 
-async def _broadcast_spectators(service_game, service_user, service_answer, status=None):
+async def _broadcast_spectators(service_game, service_user, service_answer, status=None, common_message=None):
     if status is None:
         status = await get_cached_game_status(service_game)
-
-    start_time = datetime.now()
-    logger.info(f"""
-    🔄 Начало рассылки зрителям:
-    - Количество зрителей: {len(active_spectators)}
-    - Время начала: {start_time.strftime('%H:%M:%S.%f')}
-    """)
 
     sections = await service_game.get_sections()
     current_section = sections[status.current_section_index]
@@ -520,12 +600,11 @@ async def _broadcast_spectators(service_game, service_user, service_answer, stat
         players = await service_user.get_all_user()
         message = {
             "type": "rating",
-            "players": players,
+            "content": players,
             "section": current_section
         }
-        logger.info(f"📊 Отправка рейтинга: {len(players)} игроков")
     else:
-        message = {
+        message = common_message or {
             "type": "question",
             "content": status.current_question or "Ожидайте следующий вопрос...",
             "section": current_section,
@@ -535,36 +614,21 @@ async def _broadcast_spectators(service_game, service_user, service_answer, stat
             "timer": status.timer,
             "show_answer": status.show_answer
         }
-        logger.info("❓ Отправка вопроса зрителям")
 
     broadcast_tasks = []
     for spectator_id, spectator in list(active_spectators.items()):
         try:
-            # Убираем проверку is_connection_active, так как она может вызывать ложные срабатывания
             broadcast_tasks.append(
-                asyncio.create_task(spectator.send_text(json.dumps(message)))
+                asyncio.create_task(spectator.send_json(message))
             )
             logger.debug(f"➡️ Добавлена задача отправки для зрителя ID: {spectator_id}")
         except Exception as e:
             logger.error(f"Ошибка при отправке зрителю {spectator_id}: {str(e)}")
-            # Удаляем проблемное соединение только при реальной ошибке отправки
-            if spectator_id in active_spectators:
-                del active_spectators[spectator_id]
-            if spectator_id in spectator_last_activity:
-                del spectator_last_activity[spectator_id]
+            await handle_disconnect("spectator", spectator_id, spectator)
 
     if broadcast_tasks:
         await asyncio.gather(*broadcast_tasks, return_exceptions=True)
 
-    end_time = datetime.now()
-    execution_time = (end_time - start_time).total_seconds()
-
-    logger.info(f"""
-    ✅ Рассылка зрителям завершена:
-    - Время окончания: {end_time.strftime('%H:%M:%S.%f')}
-    - Длительность: {execution_time:.3f} секунд
-    - Отправлено сообщений: {len(broadcast_tasks)}
-    """)
 
 @router.post("/admin/clear-redis")
 async def clear_redis(
@@ -581,6 +645,109 @@ async def clear_redis(
     await service_game.stop_game()
     
     # Оповещаем всех подключенных клиентов
-    await _broadcast("Игра сброшена", service_game, service_user, service_answer)
+    await broadcast_message(
+        message_type="question",
+        content="Игра сброшена",
+        service_game=service_game,
+        service_user=service_user,
+        service_answer=service_answer
+    )
     
     return {"message": "Redis очищен, игра сброшена"}
+
+# Добавляем новую функцию для унифицированной рассылки
+async def broadcast_message(
+    message_type: str,  # "question" или "rating"
+    content: any,
+    service_game: GameService,
+    service_user: UserService,
+    service_answer: AnswerService,
+    force_update: bool = False
+):
+    """
+    Универсальная функция для рассылки сообщений всем клиентам
+    
+    Args:
+        message_type: тип сообщения ("question" или "rating")
+        content: содержимое сообщения
+        service_game: сервис игры
+        service_user: сервис пользователей
+        service_answer: сервис ответов
+        force_update: принудительное обновление кэша
+    """
+    start_time = datetime.now()
+    logger.info(f"""
+    🔄 Начало рассылки сообщения:
+    - Тип: {message_type}
+    - Активных игроков: {len(active_players)}
+    - Активных зрителей: {len(active_spectators)}
+    - Время начала: {start_time.strftime('%H:%M:%S.%f')}
+    """)
+
+    try:
+        status = await get_cached_game_status(service_game, force_update)
+        sections = await service_game.get_sections()
+        current_section = sections[status.current_section_index]
+
+        broadcast_tasks = []
+
+        if message_type == "question":
+            # Формируем сообщение для вопроса
+            message = {
+                "type": "question",
+                "content": content,
+                "section": current_section,
+                "answer": status.answer_for_current_question,
+                "question_image": status.current_question_image,
+                "answer_image": status.current_answer_image,
+                "timer": status.timer,
+                "show_answer": status.show_answer
+            }
+
+            # Отправляем всем игрокам
+            for player_name, player_data in active_players.items():
+                broadcast_tasks.append(
+                    asyncio.create_task(player_data['ws'].send_json(message))
+                )
+                logger.debug(f"➡️ Добавлена задача отправки для игрока: {player_name}")
+
+        elif message_type == "rating":
+            # Для рейтинга получаем список игроков
+            players = await service_user.get_all_user()
+            message = {
+                "type": "rating",
+                "content": players,
+                "section": current_section
+            }
+
+        # Отправляем зрителям
+        for spectator_id, spectator in list(active_spectators.items()):
+            try:
+                broadcast_tasks.append(
+                    asyncio.create_task(spectator.send_json(message))
+                )
+                logger.debug(f"➡️ Добавлена задача отправки для зрителя ID: {spectator_id}")
+            except Exception as e:
+                logger.error(f"Ошибка при отправке зрителю {spectator_id}: {str(e)}")
+                await handle_disconnect("spectator", spectator_id, spectator)
+
+        if broadcast_tasks:
+            await asyncio.gather(*broadcast_tasks, return_exceptions=True)
+
+        end_time = datetime.now()
+        execution_time = (end_time - start_time).total_seconds()
+
+        logger.info(f"""
+        ✅ Рассылка завершена:
+        - Время окончания: {end_time.strftime('%H:%M:%S.%f')}
+        - Длительность: {execution_time:.3f} секунд
+        - Отправлено сообщений: {len(broadcast_tasks)}
+        """)
+
+    except Exception as e:
+        logger.error(f"""
+        ❌ Ошибка при рассылке:
+        - Время: {datetime.now().strftime('%H:%M:%S.%f')}
+        - Ошибка: {str(e)}
+        """, exc_info=True)
+        raise
