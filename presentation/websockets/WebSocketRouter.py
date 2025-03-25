@@ -156,9 +156,14 @@ async def start_game(
                 await service_question.load_questions_to_redis(section)
 
         await service_game.start_game(0, True, False)
+        
+        # Отправляем сообщение с названием первого раздела
+        first_section = sections[0]
+        section_message = f"Раздел 1: {first_section}"
+        
         await broadcast_message(
             message_type="question",
-            content="Игра начата! Ожидайте первый вопрос.",
+            content=section_message,
             service_game=service_game,
             service_user=service_user,
             service_answer=service_answer
@@ -168,7 +173,6 @@ async def start_game(
     except Exception as e:
         logger.error(f"Ошибка при запуске игры: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Ошибка при запуске игры: {str(e)}")
-
 
 @router.post("/admin/stop")
 async def stop_game(
@@ -315,48 +319,147 @@ async def next_question(
         return {"message": "Все разделы пройдены"}
 
     current_section = sections[current_section_index]
-    question = await service_question.get_random_question(current_section)
-
-    if question:
-        game_update = {
-            "current_question": question.question,
-            "answer_for_current_question": question.answer,
-            "current_question_image": question.question_image,
-            "current_answer_image": question.answer_image,
-            "timer_status": False,
-            "show_answer": False
-        }
-        await service_game.update_current_question(**game_update)
-        await invalidate_game_status_cache()
-
-        await broadcast_message(
-            message_type="question",
-            content=question.question,
-            service_game=service_game,
-            service_user=service_user,
-            service_answer=service_answer
-        )
-        execution_time = datetime.now() - start_time
-        logger.info(f"Question changed successfully in {execution_time.total_seconds()} seconds")
-        return {"message": "OK"}
-    else:
-        current_section_index += 1
-        if current_section_index >= len(sections):
-            await service_game.update_game_over(True)
+    
+    # Проверяем, есть ли текущий вопрос, чтобы понять показывать ли первый вопрос после заголовка раздела
+    # или переходить к следующему вопросу
+    if status.current_question is None:
+        # Если текущего вопроса нет, значит показываем первый вопрос после заголовка раздела
+        question = await service_question.get_random_question(current_section)
+        
+        if question:
+            game_update = {
+                "current_question": question.question,
+                "answer_for_current_question": question.answer,
+                "current_question_image": question.question_image,
+                "current_answer_image": question.answer_image,
+                "timer_status": False,
+                "show_answer": False
+            }
+            await service_game.update_current_question(**game_update)
+            await invalidate_game_status_cache()
+            
             await broadcast_message(
                 message_type="question",
-                content="Игра завершена!",
+                content=question.question,
                 service_game=service_game,
                 service_user=service_user,
                 service_answer=service_answer
             )
-            return {"message": "Все разделы пройдены"}
+            execution_time = datetime.now() - start_time
+            logger.info(f"First question of section shown in {execution_time.total_seconds()} seconds")
+            return {"message": "Первый вопрос раздела показан"}
+        else:
+            # Если в разделе нет вопросов, переходим к следующему разделу
+            current_section_index += 1
+            if current_section_index >= len(sections):
+                await service_game.update_game_over(True)
+                await broadcast_message(
+                    message_type="question",
+                    content="Игра завершена!",
+                    service_game=service_game,
+                    service_user=service_user,
+                    service_answer=service_answer
+                )
+                return {"message": "Все разделы пройдены"}
+            
+            # Обновляем индекс секции
+            await service_game.update_section_index(current_section_index)
+            new_section = sections[current_section_index]
+            
+            # Загружаем вопросы для новой секции если нужно
+            if not await service_question.has_questions(new_section):
+                await service_question.load_questions_to_redis(new_section)
+                
+            # Очищаем текущий вопрос
+            await service_game.update_current_question(
+                current_question=None,
+                answer_for_current_question=None,
+                current_question_image=None,
+                current_answer_image=None,
+                timer_status=False,
+                show_answer=False
+            )
+            
+            # Отображаем информацию о следующем разделе
+            section_message = f"Раздел {current_section_index + 1}: {new_section}"
+            await broadcast_message(
+                message_type="question",
+                content=section_message,
+                service_game=service_game,
+                service_user=service_user,
+                service_answer=service_answer
+            )
+            
+            return {"message": f"Переход к разделу: {new_section}"}
+    else:
+        # Если текущий вопрос есть, показываем следующий вопрос
+        question = await service_question.get_random_question(current_section)
+        
+        if question:
+            game_update = {
+                "current_question": question.question,
+                "answer_for_current_question": question.answer,
+                "current_question_image": question.question_image,
+                "current_answer_image": question.answer_image,
+                "timer_status": False,
+                "show_answer": False
+            }
+            await service_game.update_current_question(**game_update)
+            await invalidate_game_status_cache()
 
-        await service_game.update_section_index(current_section_index)
-        new_section = sections[current_section_index]
-        if not await service_question.has_questions(new_section):
-            await service_question.load_questions_to_redis(new_section)
-        return await next_question(service_question, service_game, service_user, service_answer)
+            await broadcast_message(
+                message_type="question",
+                content=question.question,
+                service_game=service_game,
+                service_user=service_user,
+                service_answer=service_answer
+            )
+            execution_time = datetime.now() - start_time
+            logger.info(f"Question changed successfully in {execution_time.total_seconds()} seconds")
+            return {"message": "OK"}
+        else:
+            # Вопросы в текущем разделе закончились
+            current_section_index += 1
+            if current_section_index >= len(sections):
+                await service_game.update_game_over(True)
+                await broadcast_message(
+                    message_type="question",
+                    content="Игра завершена!",
+                    service_game=service_game,
+                    service_user=service_user,
+                    service_answer=service_answer
+                )
+                return {"message": "Все разделы пройдены"}
+
+            # Обновляем индекс секции
+            await service_game.update_section_index(current_section_index)
+            new_section = sections[current_section_index]
+            
+            # Загружаем вопросы для новой секции если нужно
+            if not await service_question.has_questions(new_section):
+                await service_question.load_questions_to_redis(new_section)
+                
+            # Очищаем текущий вопрос
+            await service_game.update_current_question(
+                current_question=None,
+                answer_for_current_question=None,
+                current_question_image=None,
+                current_answer_image=None,
+                timer_status=False,
+                show_answer=False
+            )
+            
+            # Отображаем информацию о следующем разделе
+            section_message = f"Раздел {current_section_index + 1}: {new_section}"
+            await broadcast_message(
+                message_type="question",
+                content=section_message,
+                service_game=service_game,
+                service_user=service_user,
+                service_answer=service_answer
+            )
+            
+            return {"message": f"Переход к разделу: {new_section}"}
 
 @router.post("/admin/next-section")
 async def next_section(
@@ -415,9 +518,12 @@ async def next_section(
             show_answer=False
         )
         
+        # Показываем информацию о новом разделе с номером
+        section_message = f"Раздел {next_section_index + 1}: {new_section}"
+        
         await broadcast_message(
             message_type="question",
-            content=f"Переход к разделу: {new_section}",
+            content=section_message,
             service_game=service_game,
             service_user=service_user,
             service_answer=service_answer
