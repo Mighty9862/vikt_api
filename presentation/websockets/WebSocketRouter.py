@@ -380,6 +380,9 @@ async def next_question(
                 show_answer=False
             )
             
+            # Дополнительно убеждаемся, что таймер выключен
+            await service_game.update_timer_status(False)
+            
             # Отображаем информацию о следующем разделе
             section_message = f"Раздел {current_section_index + 1}: {new_section}"
             await broadcast_message(
@@ -449,6 +452,9 @@ async def next_question(
                 show_answer=False
             )
             
+            # Дополнительно убеждаемся, что таймер выключен
+            await service_game.update_timer_status(False)
+            
             # Отображаем информацию о следующем разделе
             section_message = f"Раздел {current_section_index + 1}: {new_section}"
             await broadcast_message(
@@ -517,6 +523,9 @@ async def next_section(
             timer_status=False,
             show_answer=False
         )
+        
+        # Дополнительно убеждаемся, что таймер выключен
+        await service_game.update_timer_status(False)
         
         # Показываем информацию о новом разделе с номером
         section_message = f"Раздел {next_section_index + 1}: {new_section}"
