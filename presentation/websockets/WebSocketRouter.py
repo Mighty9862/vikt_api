@@ -741,6 +741,10 @@ async def broadcast_message(
         broadcast_tasks = []
 
         if message_type == "question":
+            # Проверяем, содержит ли контент заголовок раздела или сообщение о пустом вопросе
+            is_section_header = isinstance(content, str) and content.startswith("Раздел ")
+            is_waiting_message = content in ["Ожидайте вопрос", "Ожидайте следующий вопрос...", "Игра завершена!", "Игра сброшена"]
+            
             # Формируем сообщение для вопроса
             message = {
                 "type": "question",
@@ -749,7 +753,7 @@ async def broadcast_message(
                 "answer": status.answer_for_current_question,
                 "question_image": status.current_question_image,
                 "answer_image": status.current_answer_image,
-                "timer": status.timer,
+                "timer": False if (is_section_header or is_waiting_message) else status.timer,
                 "show_answer": status.show_answer
             }
 
