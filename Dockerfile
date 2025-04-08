@@ -1,32 +1,37 @@
+FROM python:3.11-alpine as builder
 
-# Используем официальный образ Python
-FROM python:latest
+WORKDIR /app
 
-# Устанавливаем рабочую директорию
-WORKDIR /
+RUN apk add --no-cache libpq
 
-# Устанавливаем необходимые утилиты
-RUN apt-get update
+RUN apk add --no-cache --virtual .build-deps \
+    gcc \
+    musl-dev \
+    postgresql-dev \
+    libffi-dev \
+    openssl-dev
 
-RUN apt install netcat-traditional
-
-# Копируем файл зависимостей
 COPY requirements.txt .
+RUN pip install --user --no-cache-dir -r requirements.txt
 
-# Устанавливаем зависимости
-RUN pip install --no-cache-dir -r requirements.txt
+FROM python:3.11-alpine
 
+WORKDIR /app
 
-# Копируем весь проект
+COPY --from=builder /root/.local /root/.local
+COPY --from=builder /usr/lib/libpq.so.5* /usr/lib/
+
+RUN apk add --no-cache libstdc++
+
+ENV PATH=/root/.local/bin:$PATH \
+    PYTHONPATH=/app \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
 COPY . .
-
-# Копируем entrypoint скрипт и делаем его исполняемым
+    
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Устанавливаем entrypoint
 ENTRYPOINT ["/entrypoint.sh"]
-
-# Указываем команду для запуска приложения
-#CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-CMD ["fastapi", "run", "main.py", "--proxy-headers", "--port", "8000", "--host", "0.0.0.0"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
