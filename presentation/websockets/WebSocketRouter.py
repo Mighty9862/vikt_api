@@ -252,14 +252,15 @@ async def update_answer_status(
     )
     return {"message": "Правильный ответ показан"}
 
-@router.post("/admin/start_timer")
-async def update_timer(
+
+@router.post("/admin/start_timer_40")
+async def start_timer_40(
     service_game: GameService = Depends(get_game_service),
     service_user: UserService = Depends(get_user_service),
     service_answer: AnswerService = Depends(get_answer_service)
 ):
-    await service_game.update_timer_status(True)
-    # Получаем обновленный статус через кэш
+    """Запускает таймер на 40 секунд"""
+    await service_game.update_timer_status(True, 40)
     status = await get_cached_game_status(service_game, force_update=True)
     await broadcast_message(
         message_type="question",
@@ -268,7 +269,43 @@ async def update_timer(
         service_user=service_user,
         service_answer=service_answer
     )
-    return {"message": "Таймер запущен"}
+    return {"message": "Таймер запущен на 40 секунд"}
+
+@router.post("/admin/start_timer_10")
+async def start_timer_10(
+    service_game: GameService = Depends(get_game_service),
+    service_user: UserService = Depends(get_user_service),
+    service_answer: AnswerService = Depends(get_answer_service)
+):
+    """Запускает таймер на 10 секунд"""
+    await service_game.update_timer_status(True, 10)
+    status = await get_cached_game_status(service_game, force_update=True)
+    await broadcast_message(
+        message_type="question",
+        content=status.current_question or "Ожидайте вопрос",
+        service_game=service_game,
+        service_user=service_user,
+        service_answer=service_answer
+    )
+    return {"message": "Таймер запущен на 10 секунд"}
+
+@router.post("/admin/stop_timer")
+async def stop_timer(
+    service_game: GameService = Depends(get_game_service),
+    service_user: UserService = Depends(get_user_service),
+    service_answer: AnswerService = Depends(get_answer_service)
+):
+    """Останавливает таймер"""
+    await service_game.update_timer_status(False, None)
+    status = await get_cached_game_status(service_game, force_update=True)
+    await broadcast_message(
+        message_type="question",
+        content=status.current_question or "Ожидайте вопрос",
+        service_game=service_game,
+        service_user=service_user,
+        service_answer=service_answer
+    )
+    return {"message": "Таймер остановлен"}
 
 @router.get("/admin/answers")
 async def get_answers(service_answer: AnswerService = Depends(get_answer_service)):
@@ -611,6 +648,7 @@ async def websocket_player(
             "type": "question",
             "content": status.current_question or "Ожидайте вопрос",
             "timer": status.timer,
+            "timer_seconds": status.timer_seconds,  # Добавляем это поле
             "show_answer": status.show_answer
         }
         await websocket.send_json(initial_message)
@@ -754,6 +792,7 @@ async def broadcast_message(
                 "question_image": status.current_question_image,
                 "answer_image": status.current_answer_image,
                 "timer": False if (is_section_header or is_waiting_message) else status.timer,
+                "timer_seconds": None if (is_section_header or is_waiting_message) else status.timer_seconds,  # Добавляем это поле
                 "show_answer": status.show_answer
             }
 
