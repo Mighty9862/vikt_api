@@ -159,7 +159,7 @@ async def start_game(
         
         # Отправляем сообщение с названием первого раздела
         first_section = sections[0]
-        section_message = f"Раздел 1: {first_section}"
+        section_message = f"Раунд 1: {first_section}"
         
         await broadcast_message(
             message_type="question",
@@ -421,7 +421,7 @@ async def next_question(
             await service_game.update_timer_status(False)
             
             # Отображаем информацию о следующем разделе
-            section_message = f"Раздел {current_section_index + 1}: {new_section}"
+            section_message = f"Раунд {current_section_index + 1}: {new_section}"
             await broadcast_message(
                 message_type="question",
                 content=section_message,
@@ -493,7 +493,7 @@ async def next_question(
             await service_game.update_timer_status(False)
             
             # Отображаем информацию о следующем разделе
-            section_message = f"Раздел {current_section_index + 1}: {new_section}"
+            section_message = f"Раунд {current_section_index + 1}: {new_section}"
             await broadcast_message(
                 message_type="question",
                 content=section_message,
@@ -565,7 +565,7 @@ async def next_section(
         await service_game.update_timer_status(False)
         
         # Показываем информацию о новом разделе с номером
-        section_message = f"Раздел {next_section_index + 1}: {new_section}"
+        section_message = f"Раунд {next_section_index + 1}: {new_section}"
         
         await broadcast_message(
             message_type="question",
@@ -780,7 +780,7 @@ async def broadcast_message(
 
         if message_type == "question":
             # Проверяем, содержит ли контент заголовок раздела или сообщение о пустом вопросе
-            is_section_header = isinstance(content, str) and content.startswith("Раздел ")
+            is_section_header = isinstance(content, str) and content.startswith("Раунд ")
             is_waiting_message = content in ["Ожидайте вопрос", "Ожидайте следующий вопрос...", "Игра завершена!", "Игра сброшена"]
             
             # Формируем сообщение для вопроса
