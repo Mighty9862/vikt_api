@@ -411,8 +411,8 @@ async def next_question(
             await service_game.update_current_question(
                 current_question=None,
                 answer_for_current_question=None,
-                current_question_image=None,
-                current_answer_image=None,
+                current_question_image="None",
+                current_answer_image="None",
                 timer_status=False,
                 show_answer=False
             )
@@ -483,8 +483,8 @@ async def next_question(
             await service_game.update_current_question(
                 current_question=None,
                 answer_for_current_question=None,
-                current_question_image=None,
-                current_answer_image=None,
+                current_question_image="None",
+                current_answer_image="None",
                 timer_status=False,
                 show_answer=False
             )
@@ -555,8 +555,8 @@ async def next_section(
         await service_game.update_current_question(
             current_question=None,
             answer_for_current_question=None,
-            current_question_image=None,
-            current_answer_image=None,
+            current_question_image="None",
+            current_answer_image="None",
             timer_status=False,
             show_answer=False
         )
