@@ -3,7 +3,7 @@ from typing import List, Optional
 from ..base.base_repository import BaseRepository
 from models import Question
 from sqlalchemy.ext.asyncio import AsyncSession
-from .exceptions.exceptions import UserNotFoundException, UserNotExistsException, UserExistsException
+from .exceptions.exceptions import UserNotFoundException
 from sqlalchemy import select, delete, text
 from schemas.questions import QuestionSchema
 
@@ -18,22 +18,26 @@ class QuestionRepository(BaseRepository[Question]):
         super().__init__(session=session, model=self.model, exception=self.exception)
 
     async def add_question_from_list(self, questions_data: list[dict]) -> Question:
-        
-        for question_data in questions_data:
-            new_question = Question(
-                question=question_data.get("question"),
-                answer=question_data.get("answer"),
-                section=question_data.get("section"),
-                question_image=question_data.get("question_image"),
-                answer_image=question_data.get("answer_image")
+        try:
+            for question_data in questions_data:
+                new_question = Question(
+                    question=question_data.get("question"),
+                    answer=question_data.get("answer"),
+                    section=question_data.get("section"),
+                    question_image=question_data.get("question_image"),
+                    answer_image=question_data.get("answer_image")
 
-            )
-            self.session.add(new_question)
-        await self.session.commit()
+                )
+                self.session.add(new_question)
+            await self.session.commit()
 
-        return {
-            "ok": "Вопросы успешно добавлены"
-        }
+            return {
+                "ok": "Вопросы успешно добавлены"
+            }
+        except Exception as e:
+            return {
+                "error": f"Ошибка при добавлении вопроса: {str(e)}"
+            }
     
     async def get_all_question(self) -> list[Question]:
         query = select(self.model)
@@ -41,7 +45,9 @@ class QuestionRepository(BaseRepository[Question]):
         res = stmt.scalars().all()
 
         if not res:
-            raise "Fail"
+            return {
+                "error": "Вопросы не найдены"
+            }
         
         return res
     
@@ -51,7 +57,9 @@ class QuestionRepository(BaseRepository[Question]):
         res = stmt.scalars().all()
 
         if not res:
-            return False
+            return {
+                "error": "Вопросы не найдены"
+            }
         
         return list(res)
     
@@ -64,7 +72,9 @@ class QuestionRepository(BaseRepository[Question]):
         res = stmt.scalars().all()
 
         if not res:
-            raise self.exception
+            return {
+                "error": "Вопрос не найден"
+            }
         
         return res
     
@@ -76,60 +86,80 @@ class QuestionRepository(BaseRepository[Question]):
         res = stmt.scalars().all()
 
         if not res:
-            raise self.exception
+            return {
+                "error": "Вопрос не найден"
+            }
         
         return res
     
     async def reset_table(self):
-        # Удаляем все записи из таблицы
-        await self.session.execute(delete(self.model))
-        
-        # Если используется PostgreSQL, сбрасываем последовательность
-        if self.session.bind.dialect.name == 'postgresql':
-            await self.session.execute(text(f"ALTER SEQUENCE {self.model.__tablename__}_id_seq RESTART WITH 1"))
-        
-        await self.session.commit()
+        try:
+
+            await self.session.execute(delete(self.model))
+            if self.session.bind.dialect.name == 'postgresql':
+                await self.session.execute(text(f"ALTER SEQUENCE {self.model.__tablename__}_id_seq RESTART WITH 1"))
+            
+            await self.session.commit()
+        except Exception as e:
+            return {
+                "error": f"Ошибка при удалении таблицы: {str(e)}"
+            }
+        return {
+            "ok": "Таблица с вопросами удалена"
+        }
 
     async def delete_question(self, question: str) -> Question:
-        # Сначала проверяем, существует ли пользователь
-        query = select(self.model).where(self.model.question == question)
-        stmt = await self.session.execute(query)
-        question_data = stmt.scalars().first()
+        try:
 
-        if not question_data:
-            raise self.exception
+            query = select(self.model).where(self.model.question == question)
+            stmt = await self.session.execute(query)
+            question_data = stmt.scalars().first()
 
-        # Выполняем запрос на удаление
-        delete_query = delete(self.model).where(self.model.question == question)
-        await self.session.execute(delete_query)
-        await self.session.commit()
+            if not question_data:
+                return {
+                    "error": "Вопрос не найден"
+                }
 
+            # Выполняем запрос на удаление
+            delete_query = delete(self.model).where(self.model.question == question)
+            await self.session.execute(delete_query)
+            await self.session.commit()
+        except Exception as e:
+            return {
+                "error": f"Ошибка при удалении вопроса: {str(e)}"
+            }
+        
         return {
             "message": "Вопрос успешно удален"
         }
     
     async def load_questions_to_redis(self, section: str):
-        # Удаляем старые вопросы перед загрузкой новых
-        await self.redis.delete(section)
-        
-        # Получаем вопросы из базы данных
-        query = select(self.model).where(self.model.section == section)
-        result = await self.session.execute(query)
-        questions = result.scalars().all()
-        
-        # Сериализуем и загружаем в Redis
-        for question in questions:
-            question_data = QuestionSchema.from_orm(question).dict()
-            # Сохраняем данные в Redis
-            await self.redis.sadd(section, json.dumps(question_data, ensure_ascii=False))
 
-    # Пример получения данных из Redis
+        try:
+
+            await self.redis.delete(section)
+            query = select(self.model).where(self.model.section == section)
+            result = await self.session.execute(query)
+            questions = result.scalars().all()
+            
+            for question in questions:
+                question_data = QuestionSchema.from_orm(question).dict()
+                await self.redis.sadd(section, json.dumps(question_data, ensure_ascii=False))
+        except Exception as e:
+            {
+                "error": f"Ошибка при загрузке вопроса в redis: {str(e)}"
+            }
+
     async def get_random_question(self, section: str) -> Optional[QuestionSchema]:
-        question_json = await self.redis.spop(section)
-        if question_json:
-            # Декодируем данные из байтового формата
-            return QuestionSchema(**json.loads(question_json.decode('utf-8')))
-        return None
+        try:
+            question_json = await self.redis.spop(section)
+            if question_json:
+                return QuestionSchema(**json.loads(question_json.decode('utf-8')))
+        except Exception as e:
+            return {
+                "error": f"ошибка при получении случайного вопроса из redis: {str(e)}"
+            }
+        
 
     async def has_questions(self, section: str) -> bool:
         return await self.redis.scard(section) > 0 

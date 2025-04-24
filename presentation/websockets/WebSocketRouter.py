@@ -779,11 +779,9 @@ async def broadcast_message(
         broadcast_tasks = []
 
         if message_type == "question":
-            # Проверяем, содержит ли контент заголовок раздела или сообщение о пустом вопросе
             is_section_header = isinstance(content, str) and content.startswith("Раунд ")
             is_waiting_message = content in ["Ожидайте вопрос", "Ожидайте следующий вопрос...", "Игра завершена!", "Игра сброшена"]
             
-            # Формируем сообщение для вопроса
             message = {
                 "type": "question",
                 "content": content,
@@ -792,11 +790,10 @@ async def broadcast_message(
                 "question_image": status.current_question_image,
                 "answer_image": status.current_answer_image,
                 "timer": False if (is_section_header or is_waiting_message) else status.timer,
-                "timer_seconds": None if (is_section_header or is_waiting_message) else status.timer_seconds,  # Добавляем это поле
+                "timer_seconds": None if (is_section_header or is_waiting_message) else status.timer_seconds,  
                 "show_answer": status.show_answer
             }
 
-            # Отправляем всем игрокам
             for player_name, player_data in active_players.items():
                 broadcast_tasks.append(
                     asyncio.create_task(player_data['ws'].send_json(message))
@@ -811,7 +808,6 @@ async def broadcast_message(
                 "section": current_section
             }
 
-        # Отправляем зрителям
         for spectator_id, spectator in list(active_spectators.items()):
             try:
                 broadcast_tasks.append(
@@ -851,13 +847,9 @@ async def clear_redis(
 ):
     redis = await anext(get_redis())
     
-    # Очищаем весь Redis
     await redis.flushall()
-    
-    # Останавливаем игру
     await service_game.stop_game()
     
-    # Оповещаем всех подключенных клиентов
     await broadcast_message(
         message_type="question",
         content="Игра сброшена",
