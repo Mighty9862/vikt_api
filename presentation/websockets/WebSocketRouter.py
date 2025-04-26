@@ -779,10 +779,6 @@ async def broadcast_message(
         broadcast_tasks = []
 
         if message_type == "question":
-<<<<<<< HEAD
-            # Проверяем, содержит ли контент заголовок раздела или сообщение о пустом вопросе
-=======
->>>>>>> dev
             is_section_header = isinstance(content, str) and content.startswith("Раунд ")
             is_waiting_message = content in ["Ожидайте вопрос", "Ожидайте следующий вопрос...", "Игра завершена!", "Игра сброшена"]
             
