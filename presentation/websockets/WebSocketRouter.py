@@ -252,14 +252,15 @@ async def update_answer_status(
     )
     return {"message": "Правильный ответ показан"}
 
-@router.post("/admin/start_timer")
-async def update_timer(
+
+@router.post("/admin/start_timer_40")
+async def start_timer_40(
     service_game: GameService = Depends(get_game_service),
     service_user: UserService = Depends(get_user_service),
     service_answer: AnswerService = Depends(get_answer_service)
 ):
-    await service_game.update_timer_status(True)
-    # Получаем обновленный статус через кэш
+    """Запускает таймер на 40 секунд"""
+    await service_game.update_timer_status(True, 40)
     status = await get_cached_game_status(service_game, force_update=True)
     await broadcast_message(
         message_type="question",
@@ -268,7 +269,43 @@ async def update_timer(
         service_user=service_user,
         service_answer=service_answer
     )
-    return {"message": "Таймер запущен"}
+    return {"message": "Таймер запущен на 40 секунд"}
+
+@router.post("/admin/start_timer_10")
+async def start_timer_10(
+    service_game: GameService = Depends(get_game_service),
+    service_user: UserService = Depends(get_user_service),
+    service_answer: AnswerService = Depends(get_answer_service)
+):
+    """Запускает таймер на 10 секунд"""
+    await service_game.update_timer_status(True, 10)
+    status = await get_cached_game_status(service_game, force_update=True)
+    await broadcast_message(
+        message_type="question",
+        content=status.current_question or "Ожидайте вопрос",
+        service_game=service_game,
+        service_user=service_user,
+        service_answer=service_answer
+    )
+    return {"message": "Таймер запущен на 10 секунд"}
+
+@router.post("/admin/stop_timer")
+async def stop_timer(
+    service_game: GameService = Depends(get_game_service),
+    service_user: UserService = Depends(get_user_service),
+    service_answer: AnswerService = Depends(get_answer_service)
+):
+    """Останавливает таймер"""
+    await service_game.update_timer_status(False, None)
+    status = await get_cached_game_status(service_game, force_update=True)
+    await broadcast_message(
+        message_type="question",
+        content=status.current_question or "Ожидайте вопрос",
+        service_game=service_game,
+        service_user=service_user,
+        service_answer=service_answer
+    )
+    return {"message": "Таймер остановлен"}
 
 @router.get("/admin/answers")
 async def get_answers(service_answer: AnswerService = Depends(get_answer_service)):
@@ -374,8 +411,8 @@ async def next_question(
             await service_game.update_current_question(
                 current_question=None,
                 answer_for_current_question=None,
-                current_question_image=None,
-                current_answer_image=None,
+                current_question_image="None",
+                current_answer_image="None",
                 timer_status=False,
                 show_answer=False
             )
@@ -446,8 +483,8 @@ async def next_question(
             await service_game.update_current_question(
                 current_question=None,
                 answer_for_current_question=None,
-                current_question_image=None,
-                current_answer_image=None,
+                current_question_image="None",
+                current_answer_image="None",
                 timer_status=False,
                 show_answer=False
             )
@@ -518,8 +555,8 @@ async def next_section(
         await service_game.update_current_question(
             current_question=None,
             answer_for_current_question=None,
-            current_question_image=None,
-            current_answer_image=None,
+            current_question_image="None",
+            current_answer_image="None",
             timer_status=False,
             show_answer=False
         )
@@ -611,6 +648,7 @@ async def websocket_player(
             "type": "question",
             "content": status.current_question or "Ожидайте вопрос",
             "timer": status.timer,
+            "timer_seconds": status.timer_seconds,  # Добавляем это поле
             "show_answer": status.show_answer
         }
         await websocket.send_json(initial_message)
@@ -741,11 +779,13 @@ async def broadcast_message(
         broadcast_tasks = []
 
         if message_type == "question":
+<<<<<<< HEAD
             # Проверяем, содержит ли контент заголовок раздела или сообщение о пустом вопросе
+=======
+>>>>>>> dev
             is_section_header = isinstance(content, str) and content.startswith("Раунд ")
             is_waiting_message = content in ["Ожидайте вопрос", "Ожидайте следующий вопрос...", "Игра завершена!", "Игра сброшена"]
             
-            # Формируем сообщение для вопроса
             message = {
                 "type": "question",
                 "content": content,
@@ -754,10 +794,10 @@ async def broadcast_message(
                 "question_image": status.current_question_image,
                 "answer_image": status.current_answer_image,
                 "timer": False if (is_section_header or is_waiting_message) else status.timer,
+                "timer_seconds": None if (is_section_header or is_waiting_message) else status.timer_seconds,  
                 "show_answer": status.show_answer
             }
 
-            # Отправляем всем игрокам
             for player_name, player_data in active_players.items():
                 broadcast_tasks.append(
                     asyncio.create_task(player_data['ws'].send_json(message))
@@ -772,7 +812,6 @@ async def broadcast_message(
                 "section": current_section
             }
 
-        # Отправляем зрителям
         for spectator_id, spectator in list(active_spectators.items()):
             try:
                 broadcast_tasks.append(
@@ -812,13 +851,9 @@ async def clear_redis(
 ):
     redis = await anext(get_redis())
     
-    # Очищаем весь Redis
     await redis.flushall()
-    
-    # Останавливаем игру
     await service_game.stop_game()
     
-    # Оповещаем всех подключенных клиентов
     await broadcast_message(
         message_type="question",
         content="Игра сброшена",

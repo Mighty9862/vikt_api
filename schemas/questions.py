@@ -11,7 +11,6 @@ class QuestionSchema(BaseModel):
     answer_image: str
 
     class Config:
-        #from_orm = True
         from_attributes = True
 
 class QuestionReadSchema(BaseModel):
