@@ -8,7 +8,7 @@ class GameStatus(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     sections = Column(String, nullable=True, unique=False, 
-                      default="Начальный этап Великой Отечественной войны.Коренной перелом в ходе Великой Отечественной войны.Завершающий этап Великой Отечественной войны")
+                      default="Начальный этап Великой Отечественной войны.Коренной перелом в ходе Великой Отечественной войны.Завершающий этап Великой Отечественной войны.Капитанский раунд")
     current_section_index = Column(Integer, nullable=True, default=0)
 
     current_question = Column(String, nullable=True)
@@ -19,14 +19,6 @@ class GameStatus(Base):
     game_started = Column(Boolean, nullable=True, default=False)
     game_over = Column(Boolean, nullable=True, default=False)
     timer = Column(Boolean, nullable=True, default=False)
-    timer_seconds = Column(Integer, nullable=True)  # Добавляем новое поле
-
     show_answer = Column(Boolean, nullable=True, default=False)
-
     spectator_display_mode = Column(String, nullable=True, default="question")
 
-    # Связь с таблицей answers
-    #answers = relationship("Answer", back_populates="user", cascade="all, delete-orphan")
-    
-    #profile: Mapped["Profile"] = relationship(back_populates="user", cascade="all, delete-orphan", uselist=False)
-    #settings: Mapped["SettingsModel"] = relationship(back_populates="user", cascade="all, delete-orphan", uselist=False)

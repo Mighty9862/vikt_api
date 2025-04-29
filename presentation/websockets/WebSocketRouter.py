@@ -648,7 +648,6 @@ async def websocket_player(
             "type": "question",
             "content": status.current_question or "Ожидайте вопрос",
             "timer": status.timer,
-            "timer_seconds": status.timer_seconds,  # Добавляем это поле
             "show_answer": status.show_answer
         }
         await websocket.send_json(initial_message)
@@ -790,7 +789,6 @@ async def broadcast_message(
                 "question_image": status.current_question_image,
                 "answer_image": status.current_answer_image,
                 "timer": False if (is_section_header or is_waiting_message) else status.timer,
-                "timer_seconds": None if (is_section_header or is_waiting_message) else status.timer_seconds,  
                 "show_answer": status.show_answer
             }
 
