@@ -30,4 +30,4 @@ build/
 *.egg-info/
 
 
-game_server.log
+.env
