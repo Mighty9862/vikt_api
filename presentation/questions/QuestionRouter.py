@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from services.questions.QuestionService import QuestionService
-from schemas.questions import QuestionSchema, QuestionReadSchema
+from schemas.questions import QuestionSchema
 from typing import List
-#from config.utils.auth import utils
 from dependencies import get_question_service
 
 

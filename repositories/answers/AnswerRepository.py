@@ -3,7 +3,7 @@ from models import Answer
 from sqlalchemy.ext.asyncio import AsyncSession
 from .exceptions.exceptions import AnswerNotFoundException
 from sqlalchemy import delete, select, text
-from typing import List, Optional
+from typing import List
 from datetime import datetime
 import pytz
 
@@ -74,11 +74,9 @@ class AnswerRepository(BaseRepository[Answer]):
         return res
     
     async def reset_table(self) -> dict:
-        # Удаляем все записи из таблицы answers
         delete_query = delete(self.model)
         await self.session.execute(delete_query)
 
-        # Сбрасываем последовательность id (для PostgreSQL)
         reset_sequence_query = text("ALTER SEQUENCE answers_id_seq RESTART WITH 1")
         await self.session.execute(reset_sequence_query)
 

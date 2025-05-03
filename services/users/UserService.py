@@ -1,25 +1,19 @@
 from config.utils.auth import utils
 from repositories.users.UserRepository import UserRepository
 from schemas.users import UserLoginSchema, UserSchema
-from werkzeug.security import generate_password_hash, check_password_hash
 
 from services.users.helpers import helpers
 from .exceptions.exceptions import IncorrectPasswordException
 
 class UserService:
-
     def __init__(self, repository: UserRepository):
         self.repository = repository
 
-
     async def registration(self, user_in: UserLoginSchema) -> helpers.TokenInfo:
         hash_password: bytes = utils.hash_passowrd(password=user_in.password)
-
         new_user = await self.repository.registration(hash_password, user_in.username)
-
         access_token: str = helpers.create_access_token(user=new_user)
         refresh_token: str = helpers.create_refresh_token(user=new_user)
-
         return helpers.TokenInfo(
             access_token=access_token,
             refresh_token=refresh_token
@@ -30,11 +24,6 @@ class UserService:
 
     async def login(self, user_in: UserLoginSchema):
         user = await self.repository.login(username=user_in.username)
-
-      #  is_valid_password: bool = check_password_hash(
-      #      pwhash=user.password,
-      #      password=user_in.password
-       # )
 
         is_valid_password: bool = utils.validation_password(
             hashed_password=user.password,

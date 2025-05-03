@@ -36,12 +36,6 @@ def get_answer_repository(session: AsyncSession = Depends(get_db().sesion_creati
 def get_game_repository(session: AsyncSession = Depends(get_db().sesion_creation)) -> GameRepository:
     return GameRepository(session=session)
 
-#def get_hobby_repository(session: AsyncSession = Depends(get_db().sesion_creation)) -> HobbyRepository:
-    return HobbyRepository(session=session)
-
-#def get_settings_repository(session: AsyncSession = Depends(get_db().sesion_creation)) -> SettingsModelRepository:
-    return SettingsModelRepository(session=session)
-
 #==================================================================
 
 def get_user_service(repository: UserRepository = Depends(get_user_repository)) -> UserService:
@@ -55,9 +49,3 @@ def get_answer_service(repository: AnswerRepository = Depends(get_answer_reposit
 
 def get_game_service(repository: GameService = Depends(get_game_repository)) -> GameService:
     return GameService(repository=repository)
-
-#def get_hobby_service(repository: HobbyService = Depends(get_hobby_repository)) -> HobbyService:
-    return HobbyService(repository=repository)
-
-#def get_settings_service(repository: SettingsModelService = Depends(get_settings_repository)) -> SettingsModelService:
-    return SettingsModelService(repository=repository)

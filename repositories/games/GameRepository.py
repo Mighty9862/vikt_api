@@ -1,9 +1,8 @@
-from typing import List
 from ..base.base_repository import BaseRepository
 from models import GameStatus
 from sqlalchemy.ext.asyncio import AsyncSession
-from .exceptions.exceptions import UserNotFoundException, UserNotExistsException, UserExistsException
-from sqlalchemy import select, delete, text
+from .exceptions.exceptions import UserNotFoundException
+from sqlalchemy import select
 
 class GameRepository(BaseRepository[GameStatus]):
     model: GameStatus = GameStatus

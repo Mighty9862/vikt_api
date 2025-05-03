@@ -1,6 +1,4 @@
 from pydantic import BaseModel, Field
-from datetime import datetime
-from typing import Optional
 
 class AnswerSchema(BaseModel):
     id: int = Field(description="Уникальный идентификатор ответа")
@@ -10,7 +8,7 @@ class AnswerSchema(BaseModel):
     answer_at: str = Field(description="Дата и время создания ответа")
 
     class Config:
-        from_attributes = True  # Ранее называлось `orm_mode = True` в Pydantic v1
+        from_attributes = True
         json_schema_extra = {
             "example": {
                 "id": 1,

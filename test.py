@@ -43,7 +43,7 @@ def test_answers(status_url: str, answers_url: str) -> None:
 
 if __name__ == '__main__':
 
-    status_url = "http://80.253.19.93:8000/api/v2/websocket/get_all_status"
-    answers_url = "http://80.253.19.93:8000/api/v2/answers/"
+    status_url = "http://10.10.0.88:8000/api/v2/websocket/get_all_status"
+    answers_url = "http://10.10.0.88:8000/api/v2/answers/"
 
     test_answers(status_url, answers_url)

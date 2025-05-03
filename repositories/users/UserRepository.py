@@ -72,19 +72,13 @@ class UserRepository(BaseRepository[User]):
         return list(res)
     
     async def add_score_to_user(self, username: str, points: int) -> User:
-        # Сначала проверяем, существует ли пользователь
         query = select(self.model).where(self.model.username == username)
         stmt = await self.session.execute(query)
         user = stmt.scalars().first()
-
         if not user:
-            raise self.exception  # Пользователь не найден
-
-        # Прибавляем очки к текущему значению score
+            raise self.exception
         user.score += points
-
-        # Обновляем значение в базе данных
-        await self.session.commit()  # Зафиксировать изменения
+        await self.session.commit()
 
         return {
                 "id": user.id,
@@ -93,40 +87,33 @@ class UserRepository(BaseRepository[User]):
             }
 
     async def delete_user_by_username(self, username: str) -> User:
-        # Сначала проверяем, существует ли пользователь
         query = select(self.model).where(self.model.username == username)
         stmt = await self.session.execute(query)
         user = stmt.scalars().first()
 
         if not user:
             raise self.exception
-
-        # Выполняем запрос на удаление
+        
         delete_query = delete(self.model).where(self.model.username == username)
         await self.session.execute(delete_query)
         await self.session.commit()
 
-        return {
-            "message": "Пользователь успешно удален"
-        }
+        return {"message": "Пользователь успешно удален"}
     
     async def get_current_auth_user(self, username: str) -> User:
         query = select(self.model).where(self.model.username == username)
         stmt = await self.session.execute(query)
         res = stmt.scalars().first()
-        
-
+    
         if not res:
             raise UserNotExistsException()
 
         return res
     
     async def reset_table(self) -> dict:
-        # Удаляем все записи из таблицы
         delete_query = delete(self.model)
         await self.session.execute(delete_query)
 
-        # Сбрасываем последовательность id (для PostgreSQL)
         reset_sequence_query = text("ALTER SEQUENCE users_id_seq RESTART WITH 1")
         await self.session.execute(reset_sequence_query)
 

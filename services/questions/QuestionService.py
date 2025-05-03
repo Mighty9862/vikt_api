@@ -1,7 +1,4 @@
 from repositories.questions.QuestionRepository import QuestionRepository
-from schemas.users import UserLoginSchema
-from werkzeug.security import generate_password_hash, check_password_hash
-#from .exceptions.exceptions import IncorrectPasswordException
 
 class QuestionService:
 
@@ -25,7 +22,6 @@ class QuestionService:
     
     async def delete_question(self, question: str) -> list:
         return await self.repository.delete_question(question=question)
-    
     
     async def reset_question_table(self):
         return await self.repository.reset_table()

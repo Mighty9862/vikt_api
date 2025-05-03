@@ -1,8 +1,6 @@
-from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from dependencies import get_answer_service, get_db
-from schemas.answers import AnswerSchema  # Создайте схему для ответов
 from services.answers.AnswerService import AnswerService
 
 router = APIRouter(prefix="/answers", tags=["Answers"])

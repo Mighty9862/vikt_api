@@ -16,37 +16,30 @@ from services.answers.AnswerService import AnswerService
 from services.questions.QuestionService import QuestionService
 
 from config.logger import setup_logging
-from config.monitoring import start_monitoring_task
 
-# Настройка единого логгера
 logger = setup_logging()
 
 router = APIRouter(prefix="/websocket", tags=["WebSocket"])
 
-# Изменяем структуру хранения данных
 active_players = {}  # {username: {'ws': WebSocket, 'connection_id': str}}
 active_spectators = {}  # {id: WebSocket}
 spectator_last_activity = {}  # {id: datetime}
-answered_users = set()  # Теперь храним имена пользователей вместо ID
+answered_users = set()  
 
-# Константы
-INACTIVE_TIMEOUT = 10  # секунд
-CLEANUP_INTERVAL = 5  # секунд
+INACTIVE_TIMEOUT = 10
+CLEANUP_INTERVAL = 5
 
-# Кэширование состояния игры
 _game_status_cache = None
 _game_status_cache_time = 0
-CACHE_TIMEOUT = 1  # секунды
+CACHE_TIMEOUT = 1
 
-# Глобальная переменная для кэширования секций
 _sections_cache = None
 _sections_cache_time = 0
-SECTIONS_CACHE_TIMEOUT = 60  # секунды (секции меняются редко)
+SECTIONS_CACHE_TIMEOUT = 60
 
-# Глобальная переменная для кэширования рейтинга
 _rating_cache = None
 _rating_cache_time = 0
-RATING_CACHE_TIMEOUT = 5  # секунды
+RATING_CACHE_TIMEOUT = 5
 
 async def get_cached_game_status(service_game: GameService, force_update: bool = False):
     global _game_status_cache, _game_status_cache_time
@@ -64,7 +57,6 @@ async def invalidate_game_status_cache():
 
 async def is_connection_active(websocket: WebSocket) -> bool:
     try:
-        # Проверяем соединение через отправку пустого текстового сообщения
         await websocket.send_text("")
         return True
     except Exception as e:
@@ -91,7 +83,6 @@ async def get_cached_rating(service_user: UserService, force_update: bool = Fals
         
     return _rating_cache
 
-# Admin endpoints
 @router.post("/")
 async def add_gamestatus(
     service: AnswerService = Depends(get_game_service),
@@ -129,7 +120,6 @@ async def update_sections(
     service: GameService = Depends(get_game_service)
 ):
     try:
-        # Преобразуем список секций в строку, разделенную точками
         sections_string = ".".join(sections)
         await service.update_sections(sections_string)
         return {"message": "Разделы успешно обновлены", "sections": sections}
@@ -156,8 +146,7 @@ async def start_game(
                 await service_question.load_questions_to_redis(section)
 
         await service_game.start_game(0, True, False)
-        
-        # Отправляем сообщение с названием первого раздела
+    
         first_section = sections[0]
         section_message = f"Раунд 1: {first_section}"
         
@@ -206,7 +195,7 @@ async def show_rating(
     await service_game.switch_display_mode("rating")
     await broadcast_message(
         message_type="rating",
-        content=None,  # контент будет получен внутри функции
+        content=None,
         service_game=service_game,
         service_user=service_user,
         service_answer=service_answer,
@@ -241,7 +230,6 @@ async def update_answer_status(
     service_answer: AnswerService = Depends(get_answer_service)
 ):
     await service_game.update_answer_status(True)
-    # Получаем обновленный статус через кэш
     status = await get_cached_game_status(service_game, force_update=True)
     await broadcast_message(
         message_type="question",
@@ -296,7 +284,7 @@ async def next_question(
     start_time = datetime.now()
 
     global answered_users
-    answered_users = set()  # Очищаем список ответивших
+    answered_users = set()
 
     status = await get_cached_game_status(service_game)
     if not status.game_started or status.game_over:
@@ -321,11 +309,7 @@ async def next_question(
         return {"message": "Все разделы пройдены"}
 
     current_section = sections[current_section_index]
-    
-    # Проверяем, есть ли текущий вопрос, чтобы понять показывать ли первый вопрос после заголовка раздела
-    # или переходить к следующему вопросу
     if status.current_question is None:
-        # Если текущего вопроса нет, значит показываем первый вопрос после заголовка раздела
         question = await service_question.get_random_question(current_section)
         
         if question:
@@ -351,7 +335,6 @@ async def next_question(
             logger.info(f"First question of section shown in {execution_time.total_seconds()} seconds")
             return {"message": "Первый вопрос раздела показан"}
         else:
-            # Если в разделе нет вопросов, переходим к следующему разделу
             current_section_index += 1
             if current_section_index >= len(sections):
                 await service_game.update_game_over(True)
@@ -363,16 +346,13 @@ async def next_question(
                     service_answer=service_answer
                 )
                 return {"message": "Все разделы пройдены"}
-            
-            # Обновляем индекс секции
+
             await service_game.update_section_index(current_section_index)
             new_section = sections[current_section_index]
-            
-            # Загружаем вопросы для новой секции если нужно
+
             if not await service_question.has_questions(new_section):
                 await service_question.load_questions_to_redis(new_section)
-                
-            # Очищаем текущий вопрос
+
             await service_game.update_current_question(
                 current_question=None,
                 answer_for_current_question=None,
@@ -381,11 +361,9 @@ async def next_question(
                 timer_status=False,
                 show_answer=False
             )
-            
-            # Дополнительно убеждаемся, что таймер выключен
+
             await service_game.update_timer_status(False)
-            
-            # Отображаем информацию о следующем разделе
+
             section_message = f"Раунд {current_section_index + 1}: {new_section}"
             await broadcast_message(
                 message_type="question",
@@ -397,7 +375,6 @@ async def next_question(
             
             return {"message": f"Переход к разделу: {new_section}"}
     else:
-        # Если текущий вопрос есть, показываем следующий вопрос
         question = await service_question.get_random_question(current_section)
         
         if question:
@@ -423,7 +400,6 @@ async def next_question(
             logger.info(f"Question changed successfully in {execution_time.total_seconds()} seconds")
             return {"message": "OK"}
         else:
-            # Вопросы в текущем разделе закончились
             current_section_index += 1
             if current_section_index >= len(sections):
                 await service_game.update_game_over(True)
@@ -436,15 +412,12 @@ async def next_question(
                 )
                 return {"message": "Все разделы пройдены"}
 
-            # Обновляем индекс секции
             await service_game.update_section_index(current_section_index)
             new_section = sections[current_section_index]
             
-            # Загружаем вопросы для новой секции если нужно
             if not await service_question.has_questions(new_section):
                 await service_question.load_questions_to_redis(new_section)
                 
-            # Очищаем текущий вопрос
             await service_game.update_current_question(
                 current_question=None,
                 answer_for_current_question=None,
@@ -454,10 +427,8 @@ async def next_question(
                 show_answer=False
             )
             
-            # Дополнительно убеждаемся, что таймер выключен
             await service_game.update_timer_status(False)
             
-            # Отображаем информацию о следующем разделе
             section_message = f"Раунд {current_section_index + 1}: {new_section}"
             await broadcast_message(
                 message_type="question",
@@ -481,23 +452,18 @@ async def next_section(
         sections = await service_game.get_sections()
         current_section_index = status.current_section_index
         
-        # Очищаем вопросы всех предыдущих секций и текущей секции из Redis
         redis = await anext(get_redis())
         for i in range(current_section_index + 1):
             section = sections[i]
-            # Удаляем вопросы секции
             await redis.delete(f"questions:{section}")
-            # Удаляем все ключи, связанные с этой секцией
             pattern = f"*{section}*"
             keys = await redis.keys(pattern)
             if keys:
                 await redis.delete(*keys)
         
-        # Переходим к следующей секции
         next_section_index = current_section_index + 1
         
         if next_section_index >= len(sections):
-            # Если секции закончились
             await service_game.update_game_over(True)
             await broadcast_message(
                 message_type="question",
@@ -508,15 +474,12 @@ async def next_section(
             )
             return {"message": "Все разделы пройдены"}
         
-        # Обновляем индекс секции
         await service_game.update_section_index(next_section_index)
         new_section = sections[next_section_index]
         
-        # Загружаем вопросы для новой секции
         if not await service_question.has_questions(new_section):
             await service_question.load_questions_to_redis(new_section)
         
-        # Очищаем текущий вопрос
         await service_game.update_current_question(
             current_question=None,
             answer_for_current_question=None,
@@ -526,10 +489,8 @@ async def next_section(
             show_answer=False
         )
         
-        # Дополнительно убеждаемся, что таймер выключен
         await service_game.update_timer_status(False)
         
-        # Показываем информацию о новом разделе с номером
         section_message = f"Раунд {next_section_index + 1}: {new_section}"
         
         await broadcast_message(
@@ -545,16 +506,7 @@ async def next_section(
         logger.error(f"Ошибка при переключении секции: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# Добавляем новую функцию для обработки отключений
 async def handle_disconnect(connection_type: str, identifier: str | int, websocket: WebSocket):
-    """
-    Универсальная функция для обработки отключений websocket соединений
-    
-    Args:
-        connection_type: тип соединения ("player" или "spectator")
-        identifier: идентификатор соединения (имя игрока или ID зрителя)
-        websocket: объект WebSocket
-    """
     try:
         if connection_type == "player":
             if identifier in active_players:
@@ -570,12 +522,11 @@ async def handle_disconnect(connection_type: str, identifier: str | int, websock
         try:
             await websocket.close()
         except Exception:
-            pass  # Игнорируем ошибки при закрытии сокета
+            pass
             
     except Exception as e:
         logger.error(f"Ошибка при обработке отключения {connection_type} {identifier}: {str(e)}")
 
-# Обновляем обработчик игрока
 @router.websocket("/ws/player")
 async def websocket_player(
     websocket: WebSocket,
@@ -596,7 +547,6 @@ async def websocket_player(
 
         if player_name in active_players:
             if reconnect:
-                # Используем новую функцию для закрытия старого соединения
                 await handle_disconnect("player", player_name, active_players[player_name]['ws'])
                 logger.info(f"🔄 Игрок {player_name} переподключился")
             else:
@@ -607,7 +557,6 @@ async def websocket_player(
         active_players[player_name] = {'ws': websocket, 'connection_id': connection_id}
         logger.info(f"👤 Игрок {player_name} присоединился к игре. Всего игроков: {len(active_players)}")
 
-        # Используем кэшированный статус вместо прямого запроса
         status = await get_cached_game_status(service_game)
         initial_message = {
             "type": "question",
@@ -623,7 +572,6 @@ async def websocket_player(
 
             if player_name not in answered_users:
                 logger.info(f"Получен ответ от игрока {player_name}")
-                # Получаем свежий статус для ответа
                 status = await get_cached_game_status(service_game, force_update=True)
                 await service_answer.add_answer(
                     question=status.current_question,
@@ -640,7 +588,6 @@ async def websocket_player(
         if player_name:
             await handle_disconnect("player", player_name, websocket)
 
-# Обновляем обработчик зрителя
 @router.websocket("/ws/spectator")
 async def websocket_spectator(
     websocket: WebSocket,
@@ -656,25 +603,18 @@ async def websocket_spectator(
         spectator_last_activity[spectator_id] = datetime.now()
 
         logger.info(f"🟢 Новое подключение зрителя: ID: {spectator_id}, Всего зрителей: {len(active_spectators)}")
-
-        # Сразу отправляем текущее состояние
         status = await get_cached_game_status(service_game)
         
-        # Определяем тип сообщения в зависимости от режима отображения
         message_type = "rating" if status.spectator_display_mode == "rating" else "question"
         content = None if message_type == "rating" else (status.current_question or "Ожидайте следующий вопрос...")
         
-        # Используем broadcast_message только для текущего зрителя
-        # Создаем временное одиночное соединение
         temp_spectators = {spectator_id: websocket}
         original_spectators = active_spectators.copy()
         
         try:
-            # Временно заменяем список активных зрителей только текущим зрителем
             active_spectators.clear()
             active_spectators.update(temp_spectators)
-            
-            # Отправляем сообщение только текущему зрителю
+
             await broadcast_message(
                 message_type=message_type,
                 content=content,
@@ -684,17 +624,14 @@ async def websocket_spectator(
                 force_update=False
             )
         finally:
-            # Восстанавливаем оригинальный список зрителей
             active_spectators.clear()
             active_spectators.update(original_spectators)
 
         while True:
             try:
-                # Ждем сообщения от клиента для поддержания соединения
                 await asyncio.wait_for(websocket.receive_text(), timeout=30)
                 spectator_last_activity[spectator_id] = datetime.now()
             except asyncio.TimeoutError:
-                # Проверяем соединение
                 if not await is_connection_active(websocket):
                     logger.warning(f"🔴 Зритель {spectator_id} неактивен, закрываем соединение")
                     raise WebSocketDisconnect()
@@ -705,8 +642,7 @@ async def websocket_spectator(
     except Exception as e:
         logger.error(f"Ошибка в websocket_spectator: {str(e)}")
         await handle_disconnect("spectator", spectator_id, websocket)
-
-# Добавляем новую функцию для унифицированной рассылки
+        
 async def broadcast_message(
     message_type: str,  # "question" или "rating"
     content: any,
@@ -715,17 +651,6 @@ async def broadcast_message(
     service_answer: AnswerService,
     force_update: bool = False
 ):
-    """
-    Универсальная функция для рассылки сообщений всем клиентам
-    
-    Args:
-        message_type: тип сообщения ("question" или "rating")
-        content: содержимое сообщения
-        service_game: сервис игры
-        service_user: сервис пользователей
-        service_answer: сервис ответов
-        force_update: принудительное обновление кэша
-    """
     start_time = datetime.now()
     logger.info(f"""
     🔄 Начало рассылки сообщения:

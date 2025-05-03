@@ -1,8 +1,5 @@
-from typing import Optional
 from repositories.answers.AnswerRepository import AnswerRepository
-from schemas.users import UserLoginSchema
-from werkzeug.security import generate_password_hash, check_password_hash
-#from .exceptions.exceptions import IncorrectPasswordException
+
 
 class AnswerService:
 

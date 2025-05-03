@@ -26,18 +26,12 @@ class QuestionRepository(BaseRepository[Question]):
                     section=question_data.get("section"),
                     question_image=question_data.get("question_image"),
                     answer_image=question_data.get("answer_image")
-
                 )
                 self.session.add(new_question)
             await self.session.commit()
-
-            return {
-                "ok": "Вопросы успешно добавлены"
-            }
+            return {"ok": "Вопросы успешно добавлены"}
         except Exception as e:
-            return {
-                "error": f"Ошибка при добавлении вопроса: {str(e)}"
-            }
+            return {"error": f"Ошибка при добавлении вопроса: {str(e)}"}
     
     async def get_all_question(self) -> list[Question]:
         query = select(self.model)
@@ -45,9 +39,7 @@ class QuestionRepository(BaseRepository[Question]):
         res = stmt.scalars().all()
 
         if not res:
-            return {
-                "error": "Вопросы не найдены"
-            }
+            return {"error": "Вопросы не найдены"}
         
         return res
     
@@ -57,9 +49,7 @@ class QuestionRepository(BaseRepository[Question]):
         res = stmt.scalars().all()
 
         if not res:
-            return {
-                "error": "Вопросы не найдены"
-            }
+            return {"error": "Вопросы не найдены"}
         
         return list(res)
     
@@ -72,41 +62,29 @@ class QuestionRepository(BaseRepository[Question]):
         res = stmt.scalars().all()
 
         if not res:
-            return {
-                "error": "Вопрос не найден"
-            }
+            return {"error": "Вопрос не найден"}
         
         return res
     
     async def get_data_by_question(self, question: str) -> List[Question]:
-        query = select(self.model).where(
-            (self.model.question == question)
-        )
+        query = select(self.model).where((self.model.question == question))
         stmt = await self.session.execute(query)
         res = stmt.scalars().all()
 
         if not res:
-            return {
-                "error": "Вопрос не найден"
-            }
-        
+            return {"error": "Вопрос не найден"}
         return res
     
     async def reset_table(self):
         try:
-
             await self.session.execute(delete(self.model))
             if self.session.bind.dialect.name == 'postgresql':
                 await self.session.execute(text(f"ALTER SEQUENCE {self.model.__tablename__}_id_seq RESTART WITH 1"))
             
             await self.session.commit()
         except Exception as e:
-            return {
-                "error": f"Ошибка при удалении таблицы: {str(e)}"
-            }
-        return {
-            "ok": "Таблица с вопросами удалена"
-        }
+            return {"error": f"Ошибка при удалении таблицы: {str(e)}"}
+        return {"ok": "Таблица с вопросами удалена"}
 
     async def delete_question(self, question: str) -> Question:
         try:
@@ -116,27 +94,18 @@ class QuestionRepository(BaseRepository[Question]):
             question_data = stmt.scalars().first()
 
             if not question_data:
-                return {
-                    "error": "Вопрос не найден"
-                }
+                return {"error": "Вопрос не найден"}
 
-            # Выполняем запрос на удаление
             delete_query = delete(self.model).where(self.model.question == question)
             await self.session.execute(delete_query)
             await self.session.commit()
         except Exception as e:
-            return {
-                "error": f"Ошибка при удалении вопроса: {str(e)}"
-            }
+            return {"error": f"Ошибка при удалении вопроса: {str(e)}"}
         
-        return {
-            "message": "Вопрос успешно удален"
-        }
+        return {"message": "Вопрос успешно удален"}
     
     async def load_questions_to_redis(self, section: str):
-
         try:
-
             await self.redis.delete(section)
             query = select(self.model).where(self.model.section == section)
             result = await self.session.execute(query)
@@ -146,9 +115,7 @@ class QuestionRepository(BaseRepository[Question]):
                 question_data = QuestionSchema.from_orm(question).dict()
                 await self.redis.sadd(section, json.dumps(question_data, ensure_ascii=False))
         except Exception as e:
-            {
-                "error": f"Ошибка при загрузке вопроса в redis: {str(e)}"
-            }
+            {"error": f"Ошибка при загрузке вопроса в redis: {str(e)}"}
 
     async def get_random_question(self, section: str) -> Optional[QuestionSchema]:
         try:
@@ -156,9 +123,7 @@ class QuestionRepository(BaseRepository[Question]):
             if question_json:
                 return QuestionSchema(**json.loads(question_json.decode('utf-8')))
         except Exception as e:
-            return {
-                "error": f"ошибка при получении случайного вопроса из redis: {str(e)}"
-            }
+            return {"error": f"ошибка при получении случайного вопроса из redis: {str(e)}"}
         
 
     async def has_questions(self, section: str) -> bool:

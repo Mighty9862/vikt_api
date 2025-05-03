@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer, OAuth2PasswordBearer
 from services.users.UserService import UserService
 from schemas.users import UserLoginSchema, UserSchema, UserByName
-#from config.utils.auth import utils
 from dependencies import get_user_service
 
 
